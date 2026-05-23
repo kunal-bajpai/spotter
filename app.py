@@ -980,13 +980,16 @@ Keep your sentences concise, punchy, conversational, and verbally interactive. A
                     
                     webSocket.onclose = (e) => {{
                         log(`WebSocket closed (Code: ${{e.code}}).`);
+                        if (e.code === 1006) {{
+                            log("<span style='color:#FF8F8F;font-weight:600;'>⚠️ Connection Failed (Abnormal Closure):</span> Google's WebSocket gateway rejected the connection. This typically indicates your API key project is suspended. Check logs/app.log or visit Google AI Studio billing console.");
+                        }}
                         if (isConnected) {{
                             stopSession();
                         }}
                     }};
                     
                     webSocket.onerror = (err) => {{
-                        log("WebSocket error occurred.");
+                        log("<span style='color:#FF4B4B;font-weight:600;'>❌ WebSocket Error:</span> The bidirectional live connection was blocked or rejected.");
                         console.error(err);
                     }};
                     
