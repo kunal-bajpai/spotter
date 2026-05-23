@@ -1017,7 +1017,7 @@ Keep your sentences concise, punchy, conversational, and verbally interactive. A
                             "realtimeInput": {{
                                 "mediaChunks": [
                                     {{
-                                        "mimeType": "audio/pcm",
+                                        "mimeType": "audio/pcm;rate=16000",
                                         "data": base64Data
                                     }}
                                 ]
@@ -1054,20 +1054,12 @@ Keep your sentences concise, punchy, conversational, and verbally interactive. A
                 const sampleRateRatio = inputSampleRate / 16000;
                 const newLength = Math.round(buffer.length / sampleRateRatio);
                 const result = new Int16Array(newLength);
-                let offsetResult = 0;
-                let offsetBuffer = 0;
-                while (offsetResult < result.length) {{
-                    const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
-                    let accum = 0, count = 0;
-                    for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {{
-                        accum += buffer[i];
-                        count++;
-                    }}
-                    let val = accum / count;
-                    val = Math.max(-1, Math.min(1, val));
-                    result[offsetResult] = val < 0 ? val * 0x8000 : val * 0x7FFF;
-                    offsetResult++;
-                    offsetBuffer = nextOffsetBuffer;
+                for (let i = 0; i < newLength; i++) {{
+                    let index = Math.round(i * sampleRateRatio);
+                    if (index >= buffer.length) index = buffer.length - 1;
+                    let sample = buffer[index];
+                    sample = Math.max(-1, Math.min(1, sample));
+                    result[i] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
                 }}
                 return result;
             }}
