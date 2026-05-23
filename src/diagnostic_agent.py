@@ -210,7 +210,7 @@ class DiagnosticAgent:
                         },
                         "faults": {
                             "shallow_depth": rep_min_depth_gap < -0.05, # hips failed to reach knee plane
-                            "excessive_forward_lean": rep_max_torso_angle > 40.0, # torso angled too far forward
+                            "excessive_forward_lean": rep_max_torso_angle > 50.0, # torso angled too far forward (exceeds low-bar standard limits)
                             "knee_valgus": rep_valgus_spikes > 5 # knees caved multiple times during rep
                         }
                     })
