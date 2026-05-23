@@ -581,6 +581,113 @@ if st.session_state.analyzed and st.session_state.feedback:
     </div>
     """, unsafe_allow_html=True)
 
+    # 1.5 Coach Voice Commentary (Dynamic WAV or HTML5 SpeechSynthesis Fallback)
+    st.markdown("### 🎙️ Coach Voice Commentary")
+    
+    # Compile the text that the coach will speak
+    voice_feedback_text = analysis['workout_summary']
+    if 'reps' in analysis and analysis['reps']:
+        cues = [f"Rep {r['rep_index']}: {r['coaching_cue']}" for r in analysis['reps']]
+        voice_feedback_text += " " + " ".join(cues)
+        
+    # Clean quotes to avoid breaking HTML/JS string interpolation
+    safe_speech_text = voice_feedback_text.replace('"', '\\"').replace("'", "\\'")
+
+    audio_path = "veo_coaching_audio.wav"
+    if os.path.exists(audio_path):
+        st.markdown("""
+        <div class="glass-card safe-glow">
+            <h4 style='margin:0 0 8px 0;color:#64FFDA;'>🎙️ High-Fidelity Audio Commentary Active</h4>
+            <p style='margin:0 0 12px 0;font-size:0.95rem;color:#8892b0;line-height:1.4;'>
+                We have generated a matching high-fidelity voice commentary track using the <b>Gemini Live API's audio modality</b> (<code>gemini-2.0-flash</code>) in an encouraging, professional, and athletic coach tone.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        st.audio(audio_path, format="audio/wav")
+    else:
+        st.markdown("""
+        <div class="glass-card warning-glow">
+            <h4 style='margin:0 0 8px 0;color:#FFD600;'>⚠️ Cloud Audio Commentary Unavailable</h4>
+            <p style='margin:0 0 12px 0;font-size:0.95rem;color:#8892b0;line-height:1.4;'>
+                The dynamic cloud-based Gemini audio commentary was not generated due to billing/prepayment limits or API constraints. 
+                <br>
+                <b>Resolution:</b> You can play the expert coaching feedback directly in your browser using our built-in high-quality local Speech Synthesis engine below!
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Embed highly styled premium local HTML5 TTS widget
+        tts_html = f"""
+        <style>
+            .tts-container {{
+                background: rgba(255, 255, 255, 0.02);
+                border: 1px solid rgba(255, 255, 255, 0.05);
+                border-radius: 12px;
+                padding: 18px;
+                margin-top: 5px;
+                box-shadow: 0 4px 30px rgba(0, 0, 0, 0.25);
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+            }}
+            .play-btn {{
+                background: linear-gradient(90deg, #FFD600 0%, #FF8F8F 100%);
+                border: none;
+                border-radius: 8px;
+                color: #0c0f17;
+                font-size: 1rem;
+                font-weight: 700;
+                padding: 12px 24px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                transition: all 0.3s ease;
+                box-shadow: 0 4px 15px rgba(255, 214, 0, 0.25);
+                font-family: 'Outfit', sans-serif;
+            }}
+            .play-btn:hover {{
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(255, 214, 0, 0.4);
+            }}
+            .play-btn:active {{
+                transform: translateY(0);
+            }}
+        </style>
+        <div class="tts-container">
+            <button onclick="speak()" class="play-btn">🔊 Listen to Local Coach Commentary</button>
+        </div>
+        <script>
+            function speak() {{
+                window.speechSynthesis.cancel();
+                const text = "{safe_speech_text}";
+                const utterance = new SpeechSynthesisUtterance(text);
+                
+                // Set high-quality English voice
+                const voices = window.speechSynthesis.getVoices();
+                const preferredVoice = voices.find(v => 
+                    (v.name.includes("Google") && v.lang.startsWith("en")) || 
+                    (v.name.includes("Natural") && v.lang.startsWith("en")) ||
+                    v.lang === "en-US"
+                );
+                if (preferredVoice) utterance.voice = preferredVoice;
+                utterance.rate = 1.05;
+                window.speechSynthesis.speak(utterance);
+            }}
+            
+            // Warmup speech synthesis voices
+            if (typeof window !== 'undefined' && 'speechSynthesis' in window) {{
+                window.speechSynthesis.getVoices();
+            }}
+        </script>
+        """
+        import streamlit.components.v1 as components
+        components.html(tts_html, height=120)
+
     # Display detected athlete appearance if available
     if "person_description" in analysis and analysis["person_description"]:
         st.markdown(f"""
@@ -603,19 +710,12 @@ if st.session_state.analyzed and st.session_state.feedback:
 
     # 2.5 Google Veo Virtual Coach Demonstration Video
     veo_demo_path = "veo_coaching_demo.mp4"
-    veo_audio_path = "veo_coaching_audio.wav"
     
     if os.path.exists(veo_demo_path):
         st.markdown("### 🏋️‍♂️ Virtual Coach Demonstration Video (Google Veo)")
         st.write("A high-fidelity coaching demonstration generated dynamically in the cloud by Google Veo showing bad form correcting to perfect textbook technique based on your coaching cues.")
-        
-        # Play the dynamic Gemini Live audio commentary track if generated successfully
-        if os.path.exists(veo_audio_path):
-            st.markdown("🔊 **Dynamic Coach Voice Commentary (Gemini Live API):**")
-            st.audio(veo_audio_path, format="audio/wav", autoplay=False)
-            
         st.video(veo_demo_path)
-        st.info("ℹ️ **Audio Integration Note**: Because Google Veo (`veo-2.0-generate-001`) is a silent visual-only model under Developer API tiers, we utilize the **Gemini Live API audio modality** (`gemini-2.0-flash`) to dynamically generate a matching high-fidelity professional voice commentary track, played beautifully alongside the coach demonstration.")
+        st.info("ℹ️ **Audio Integration Note**: Because Google Veo (`veo-2.0-generate-001`) is a silent visual-only model under Developer API tiers, we utilize the **Gemini Live API audio modality** (`gemini-2.0-flash`) to dynamically generate a matching high-fidelity professional voice commentary track, played beautifully in the commentary panel above.")
     else:
         # Display a highly premium user-friendly diagnostic warning if Veo video could not be generated due to billing/prepay depletion
         st.markdown("""

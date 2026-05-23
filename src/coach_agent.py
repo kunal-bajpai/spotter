@@ -274,8 +274,19 @@ class CoachAgent:
     def generate_audio_commentary(self, text: str, output_path: str = "veo_coaching_audio.wav") -> str:
         """
         Queries Gemini to perform text-to-speech conversion of the coaching summary
-        and saves the audio bytes wrapped in a standard WAV header.
+        and saves the audio bytes wrapped in a standard WAV header. Supports local caching.
         """
+        import hashlib
+        import shutil
+        os.makedirs("cache", exist_ok=True)
+        summary_hash = hashlib.md5(text.encode('utf-8')).hexdigest()[:8]
+        cache_path = os.path.join("cache", f"audio_{summary_hash}.wav")
+
+        if os.path.exists(cache_path):
+            logger.info(f"CoachAgent: Found cached audio commentary at {cache_path}. Restoring...")
+            shutil.copy(cache_path, output_path)
+            return output_path
+
         logger.info(f"CoachAgent: Generating native audio commentary for text: '{text}'")
         if not self.client:
             logger.warning("CoachAgent: No Gemini client available. Skipping audio commentary generation.")
@@ -340,8 +351,9 @@ class CoachAgent:
                     wav_file.setframerate(sample_rate)
                     wav_file.writeframes(pcm_bytes)
 
-
-                logger.info(f"CoachAgent: Native coaching PCM audio successfully wrapped and saved as WAV to {output_path}")
+                # Save to cache folder
+                shutil.copy(output_path, cache_path)
+                logger.info(f"CoachAgent: Native coaching PCM audio successfully wrapped, saved to {output_path}, and cached to {cache_path}")
                 return output_path
 
             logger.warning("CoachAgent: No inline audio data found in response parts.")

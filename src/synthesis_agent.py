@@ -94,47 +94,62 @@ class SynthesisAgent:
                         )
 
                     logger.info(f"SynthesisAgent: Formulated fallback Veo prompt: {veo_prompt}")
-                client = genai.Client(api_key=api_key)
-                
-                logger.info("SynthesisAgent: Querying Google Veo video generation endpoint ('veo-2.0-generate-001') for virtual coach demo...")
-                operation = client.models.generate_videos(
-                    model="veo-2.0-generate-001",
-                    prompt=veo_prompt,
-                    config=types.GenerateVideosConfig(
-                        aspect_ratio="16:9",
-                        duration_seconds=5,
-                    )
-                )
-                
-                # Poll the long-running operation
-                import time
-                wait_count = 0
-                max_wait = 18  # Wait up to 180 seconds (10s intervals)
-                
-                while not operation.done and wait_count < max_wait:
-                    logger.info("SynthesisAgent: Waiting for cloud coach video generation... (polling 10s)")
-                    time.sleep(10)
-                    operation = client.operations.get(operation)
-                    wait_count += 1
-                    
-                if operation.done:
-                    res = operation.result if (hasattr(operation, "result") and operation.result) else getattr(operation, "response", None)
-                    if res and res.generated_videos:
-                        generated_video = res.generated_videos[0]
-                        logger.info("SynthesisAgent: Cloud coach video generation complete. Downloading video file...")
-                        video_bytes = client.files.download(file=generated_video.video)
-                        
-                        veo_output_path = "veo_coaching_demo.mp4"
-                        with open(veo_output_path, "wb") as f:
-                            f.write(video_bytes)
-                        logger.info(f"SynthesisAgent: Cloud coach video generated and saved successfully to {veo_output_path}")
-                        
-                        # Post-process the downloaded Veo video to overlay dynamic coaching subtitles
-                        self._add_subtitles_to_veo_video(veo_output_path, coaching_feedback)
-                    else:
-                        logger.warning("SynthesisAgent: No generated videos found in operation response.")
+                import hashlib
+                import shutil
+                os.makedirs("cache", exist_ok=True)
+                prompt_hash = hashlib.md5(veo_prompt.encode('utf-8')).hexdigest()[:8]
+                video_basename = os.path.basename(video_path).replace(".mp4", "")
+                cache_veo_path = os.path.join("cache", f"veo_{video_basename}_{prompt_hash}.mp4")
+
+                veo_output_path = "veo_coaching_demo.mp4"
+
+                if os.path.exists(cache_veo_path):
+                    logger.info(f"SynthesisAgent: Found cached Veo coaching video at {cache_veo_path}. Restoring...")
+                    shutil.copy(cache_veo_path, veo_output_path)
                 else:
-                    logger.warning("SynthesisAgent: Cloud coach video generation timed out.")
+                    client = genai.Client(api_key=api_key)
+                    logger.info("SynthesisAgent: Querying Google Veo video generation endpoint ('veo-2.0-generate-001') for virtual coach demo...")
+                    operation = client.models.generate_videos(
+                        model="veo-2.0-generate-001",
+                        prompt=veo_prompt,
+                        config=types.GenerateVideosConfig(
+                            aspect_ratio="16:9",
+                            duration_seconds=5,
+                        )
+                    )
+                    
+                    # Poll the long-running operation
+                    import time
+                    wait_count = 0
+                    max_wait = 18  # Wait up to 180 seconds (10s intervals)
+                    
+                    while not operation.done and wait_count < max_wait:
+                        logger.info("SynthesisAgent: Waiting for cloud coach video generation... (polling 10s)")
+                        time.sleep(10)
+                        operation = client.operations.get(operation)
+                        wait_count += 1
+                        
+                    if operation.done:
+                        res = operation.result if (hasattr(operation, "result") and operation.result) else getattr(operation, "response", None)
+                        if res and res.generated_videos:
+                            generated_video = res.generated_videos[0]
+                            logger.info("SynthesisAgent: Cloud coach video generation complete. Downloading video file...")
+                            video_bytes = client.files.download(file=generated_video.video)
+                            
+                            with open(veo_output_path, "wb") as f:
+                                f.write(video_bytes)
+                            logger.info(f"SynthesisAgent: Cloud coach video generated and saved successfully to {veo_output_path}")
+                            
+                            # Post-process the downloaded Veo video to overlay dynamic coaching subtitles
+                            self._add_subtitles_to_veo_video(veo_output_path, coaching_feedback)
+
+                            # Save to cache
+                            shutil.copy(veo_output_path, cache_veo_path)
+                            logger.info(f"SynthesisAgent: Veo video successfully cached to {cache_veo_path}")
+                        else:
+                            logger.warning("SynthesisAgent: No generated videos found in operation response.")
+                    else:
+                        logger.warning("SynthesisAgent: Cloud coach video generation timed out.")
             except Exception as cloud_err:
                 logger.error(f"SynthesisAgent: Google cloud video API call failed: {cloud_err}.")
 
