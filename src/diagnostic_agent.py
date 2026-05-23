@@ -215,8 +215,9 @@ class DiagnosticAgent:
             
             # Constraints:
             # 1. Squat duration must be >= 0.5s (anything faster is a MediaPipe coordinate tracking jitter spike).
-            # 2. Knee angle must dip below 150 degrees (wiggles where the athlete sways at setup are filtered).
-            if duration >= 0.5 and min_knee < 150.0:
+            # 2. Knee angle must dip below 135 degrees (wiggles/sways during unrack/walkout stay above 135).
+            if duration >= 0.5 and min_knee < 135.0:
+
 
                 rep["rep_index"] = len(filtered_reps) + 1
                 filtered_reps.append(rep)
