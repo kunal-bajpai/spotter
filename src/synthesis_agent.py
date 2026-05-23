@@ -152,9 +152,41 @@ class SynthesisAgent:
         return output_path
 
 
+    def _draw_badge(self, img, text: str, coord: tuple, color: tuple):
+        """
+        Draws a premium, semi-transparent text badge for biomechanical annotations.
+        """
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.4
+        thickness = 1
+        
+        # Get size of text
+        (text_width, text_height), baseline = cv2.getTextSize(text, font, font_scale, thickness)
+        
+        x, y = coord
+        x_pad, y_pad = 6, 4
+        
+        # Box corners
+        x1 = x - x_pad
+        y1 = y - text_height - y_pad
+        x2 = x + text_width + x_pad
+        y2 = y + y_pad + 2
+        
+        # Create transparent overlay box for maximum premium readability
+        overlay = img.copy()
+        cv2.rectangle(overlay, (x1, y1), (x2, y2), (15, 15, 20), -1)
+        cv2.addWeighted(overlay, 0.75, img, 0.25, 0, img)
+        
+        # Draw badge border
+        cv2.rectangle(img, (x1, y1), (x2, y2), color, 1)
+        
+        # Draw white text
+        cv2.putText(img, text, (x, y), font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+
     def _draw_real_skeleton(self, img, landmarks: dict, color: tuple, width: int, height: int):
         """
-        Draws the actual joint wireframe skeleton on the frame based on coordinate dicts.
+        Draws the actual joint wireframe skeleton on the frame based on coordinate dicts
+        alongside premium annotations of joint names and degrees.
         """
         # Convert normalized coordinates to pixel spaces
         def to_px(pt_name):
@@ -195,6 +227,29 @@ class SynthesisAgent:
         for joint in joints:
             cv2.circle(img, joint, 8, (255, 255, 255), -1)
             cv2.circle(img, joint, 5, color, -1)
+
+        # Calculate exact 3D angles to display next to the skeleton overlay
+        from src.diagnostic_agent import DiagnosticAgent
+        
+        left_knee_angle = DiagnosticAgent.calculate_angle_3d(landmarks["left_hip"], landmarks["left_knee"], landmarks["left_ankle"])
+        right_knee_angle = DiagnosticAgent.calculate_angle_3d(landmarks["right_hip"], landmarks["right_knee"], landmarks["right_ankle"])
+        
+        left_torso_angle = DiagnosticAgent.calculate_torso_angle(landmarks["left_shoulder"], landmarks["left_hip"])
+        right_torso_angle = DiagnosticAgent.calculate_torso_angle(landmarks["right_shoulder"], landmarks["right_hip"])
+        
+        # Display joint labeling and angle degree badges next to each joint
+        # Left-side labels are offset leftwards, right-side labels offset rightwards to avoid overlap
+        self._draw_badge(img, "L Shoulder", (s_l[0] - 80, s_l[1] - 8), color)
+        self._draw_badge(img, "R Shoulder", (s_r[0] + 12, s_r[1] - 8), color)
+        
+        self._draw_badge(img, f"L Torso: {left_torso_angle:.1f}°", (h_l[0] - 110, h_l[1] - 8), color)
+        self._draw_badge(img, f"R Torso: {right_torso_angle:.1f}°", (h_r[0] + 12, h_r[1] - 8), color)
+        
+        self._draw_badge(img, f"L Knee: {left_knee_angle:.1f}°", (k_l[0] - 110, k_l[1] + 12), color)
+        self._draw_badge(img, f"R Knee: {right_knee_angle:.1f}°", (k_r[0] + 12, k_r[1] + 12), color)
+        
+        self._draw_badge(img, "L Ankle", (a_l[0] - 65, a_l[1] + 12), color)
+        self._draw_badge(img, "R Ankle", (a_r[0] + 12, a_r[1] + 12), color)
 
     def _compute_ideal_landmarks(self, lms: dict, faults: dict) -> dict:
         """
