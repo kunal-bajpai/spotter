@@ -904,7 +904,7 @@ Keep your sentences concise, punchy, conversational, and verbally interactive. A
             }}
             
             function connectWebSocket() {{
-                const model = "models/gemini-3.1-flash-live-preview";
+                const model = "models/gemini-2.0-flash-exp";
                 const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${{api_key}}`;
                 
                 try {{
