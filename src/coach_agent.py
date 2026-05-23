@@ -76,15 +76,16 @@ class CoachAgent:
         
         Your objective:
         1. Evaluate each repetition thoroughly.
-        2. Identify specific flaws:
-           - Depth: Was the hip-to-knee depth gap positive or near 0? If deeply negative, the squat was shallow.
-           - Torso Tilt: If maximum torso lean exceeded 40 degrees, the person leaned too far forward.
-           - Knee Valgus: If valgus count is high, their knees caved inward.
+        2. Analyze the physical joint telemetry trends organically to diagnose any biomechanical flaws, movement deviations, or posture anomalies. Let your conditioning expertise guide what constitutes a movement fault.
         3. Provide exactly one high-impact, physiological coaching cue for each repetition (e.g. "push the ground away", "keep your eyes on the horizon", "imagine sitting back into a chair").
         4. Rate safety: DANGEROUS if extreme forward lean or extreme caving occurred, WARNING if shallow, SAFE if clean.
         
+        CRITICAL TONE INSTRUCTION:
+        Adopt an exceptionally motivational, positive, and encouraging coaching persona. Write all evaluations and cues in a supportive, empowering tone that builds the athlete's confidence, inspires them to improve, and drives them to execute better on their next set, while keeping their safety as the absolute highest priority.
+        
         Provide your critique in the exact structured JSON schema requested.
         """
+
 
         try:
             # Call modern Gemini SDK with structured Pydantic schema validation
