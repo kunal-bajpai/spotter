@@ -114,24 +114,35 @@ class DiagnosticAgent:
         Segments continuous squat telemetry into discrete reps using a knee-angle state machine.
         
         States:
-        - "STAND" (knee angle > 160)
+        - "UNRACK" (initial setup/crouched lifting from rack, if starting with knee angle < 160)
+        - "STAND" (standing straight, knee angle > 160)
         - "DESCENT" (knee angle decreasing below 160)
         - "ASCENT" (knee angle rising from bottom flexion)
         """
         logger.info("DiagnosticAgent: Segmenting squats into repetitions...")
         reps = []
         
-        # State variables
-        current_state = "STAND"
+        # We need processing data with metrics
+        analyzed_frames = self.analyze_kinematics(frames_data)
+        
+        # Determine the initial state. If the lifter starts already crouched (under the bar to unrack),
+        # they must stand up fully first before any squat repetition can begin.
+        if analyzed_frames:
+            first_knee_angle = analyzed_frames[0]["metrics"]["avg_knee_angle"]
+            if first_knee_angle < 160.0:
+                current_state = "UNRACK"
+                logger.info(f"DiagnosticAgent: Starting in UNRACK state because initial knee angle is {first_knee_angle:.1f}° < 160°.")
+            else:
+                current_state = "STAND"
+        else:
+            current_state = "STAND"
+            
         rep_start_frame = None
         rep_min_knee_angle = 180.0
         rep_bottom_frame = None
         rep_max_torso_angle = 0.0
         rep_min_depth_gap = -1.0 # Tracks deepest hip level (most negative or positive)
         rep_valgus_spikes = 0
-        
-        # We need processing data with metrics
-        analyzed_frames = self.analyze_kinematics(frames_data)
         
         for i, frame in enumerate(analyzed_frames):
             metrics = frame["metrics"]
@@ -140,7 +151,13 @@ class DiagnosticAgent:
             depth_gap = metrics["avg_depth_gap"]
             valgus = metrics["valgus_ratio"]
             
-            if current_state == "STAND":
+            if current_state == "UNRACK":
+                # Once the lifter stands up straight (knee angle > 160), they enter STAND state
+                if angle >= 160.0:
+                    current_state = "STAND"
+                    logger.info(f"DiagnosticAgent: Unrack completed at {frame['timestamp_sec']:.2f}s (Knee angle: {angle:.1f}°). Transitioning to STAND.")
+                    
+            elif current_state == "STAND":
                 # Descent begins if knee flexion goes below 160
                 if angle < 160.0:
                     current_state = "DESCENT"
@@ -209,21 +226,38 @@ class DiagnosticAgent:
 
         # Post-filter segmented repetitions to eliminate high-frequency tracking noise sways and setup wiggles
         filtered_reps = []
+        total_duration = analyzed_frames[-1]["timestamp_sec"] - analyzed_frames[0]["timestamp_sec"] if analyzed_frames else 0.0
+        
         for rep in reps:
             duration = rep["end_time"] - rep["start_time"]
             min_knee = rep["metrics"]["min_knee_angle"]
+            start_time = rep["start_time"]
             
             # Constraints:
             # 1. Squat duration must be >= 0.5s (anything faster is a MediaPipe coordinate tracking jitter spike).
             # 2. Knee angle must dip below 135 degrees (wiggles/sways during unrack/walkout stay above 135).
-            if duration >= 0.5 and min_knee < 135.0:
-
-
+            # 3. Repetition must not start at the very beginning of the video (start_frame >= 5),
+            #    which filters out the initial unrack lift when the lifter starts crouched under the bar.
+            # 4. If the video is a real workout set (total duration > 4.0s), the repetition must not start
+            #    within the first 2.0s of the video (which corresponds to initial unrack/setup/walkout window).
+            is_valid = True
+            
+            if duration < 0.5:
+                logger.info(f"DiagnosticAgent: Filtering out false positive rep #{rep['rep_index']} - duration {duration:.2f}s < 0.5s (likely noise).")
+                is_valid = False
+            elif min_knee >= 135.0:
+                logger.info(f"DiagnosticAgent: Filtering out false positive rep #{rep['rep_index']} - min knee angle {min_knee:.1f}° >= 135° (likely walkout wiggles).")
+                is_valid = False
+            elif rep["start_frame"] < 5:
+                logger.info(f"DiagnosticAgent: Filtering out false positive rep #{rep['rep_index']} - started too early at frame {rep['start_frame']} < 5.")
+                is_valid = False
+            elif total_duration > 4.0 and start_time < 2.0:
+                logger.info(f"DiagnosticAgent: Filtering out false positive rep #{rep['rep_index']} - started at {start_time:.2f}s within the first 2.0s setup window.")
+                is_valid = False
+                
+            if is_valid:
                 rep["rep_index"] = len(filtered_reps) + 1
                 filtered_reps.append(rep)
-            else:
-                logger.info(f"DiagnosticAgent: Filtering out false positive rep #{rep['rep_index']} "
-                            f"(Duration: {duration:.2f}s, Min Knee: {min_knee:.1f}deg) as noise.")
         
         logger.info(f"DiagnosticAgent: Rep segmentation completed. Total reps identified after filtering: {len(filtered_reps)}.")
         return filtered_reps

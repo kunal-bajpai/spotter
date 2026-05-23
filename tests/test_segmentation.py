@@ -137,7 +137,6 @@ def test_segment_shallow_depth_squat():
             k_angle = 175.0
             t_angle = 10.0
             depth = -0.10
-            
         frames.append(generate_frame(f, k_angle, t_angle, depth, knee_caving=False))
 
     agent = DiagnosticAgent()
@@ -146,3 +145,114 @@ def test_segment_shallow_depth_squat():
     assert len(reps) == 1, "Should segment the shallow squat."
     rep = reps[0]
     assert rep["faults"]["shallow_depth"] is True, "Shallow depth must be flagged."
+
+
+def test_segment_unrack_crouched_start_ignored():
+    """
+    Ensures that starting crouched (unracking the bar) then standing up
+    does not register as a rep, but a subsequent real squat does.
+    """
+    frames = []
+    
+    # 90 frames = 3 seconds of video
+    # Frame 0 to 20: Crouched setup/unrack (Knee angle starts at 120 and rises to 175)
+    # Frame 21 to 40: Standing straight (Knee angle 175)
+    # Frame 41 to 55: Descent (Knee angle 175 -> 90)
+    # Frame 55: Bottom of real squat (Knee angle 90)
+    # Frame 56 to 70: Ascent (Knee angle 90 -> 175)
+    # Frame 71 to 90: Standing straight (Knee angle 175)
+    
+    for f in range(90):
+        if f <= 20:
+            # Crouched unrack setup rising up
+            pct = f / 20.0
+            k_angle = 120.0 + (55.0 * pct)  # 120 to 175
+            t_angle = 20.0 - (10.0 * pct)
+            depth = -0.05 - (0.05 * pct)
+        elif f < 41:
+            # Stand
+            k_angle = 175.0
+            t_angle = 10.0
+            depth = -0.10
+        elif f <= 55:
+            # Descent
+            pct = (f - 40) / 14.0
+            k_angle = 175.0 - (85.0 * pct)
+            t_angle = 10.0 + (15.0 * pct)
+            depth = -0.10 + (0.13 * pct)
+        elif f <= 70:
+            # Ascent
+            pct = (f - 55) / 15.0
+            k_angle = 90.0 + (85.0 * pct)
+            t_angle = 25.0 - (15.0 * pct)
+            depth = 0.03 - (0.13 * pct)
+        else:
+            # Stand
+            k_angle = 175.0
+            t_angle = 10.0
+            depth = -0.10
+            
+        frames.append(generate_frame(f, k_angle, t_angle, depth, knee_caving=False))
+
+    agent = DiagnosticAgent()
+    reps = agent.segment_reps(frames)
+    
+    # We expect exactly 1 rep (the one starting at frame 41).
+    # The initial unrack rising (0-20) must be ignored completely.
+    assert len(reps) == 1, "Should filter out initial unrack crouch and only detect the real subsequent squat."
+    # Allowing a small frame window (41-45) where the state machine detects descent crossing below 160°
+    assert reps[0]["start_frame"] >= 41 and reps[0]["start_frame"] <= 45, f"Should start between 41 and 45, but got {reps[0]['start_frame']}"
+
+
+def test_segment_first_two_seconds_ignored_in_long_video():
+    """
+    Ensures that any rep starting in the first 2 seconds of a video longer than 4 seconds
+    is filtered out as part of the initial walkout/setup phase.
+    """
+    frames = []
+    
+    # 180 frames = 6 seconds of video
+    # False rep: starts at frame 10 (0.33s), bottom at frame 25 (0.83s), ends at frame 40 (1.32s)
+    # Real rep: starts at frame 90 (2.97s), bottom at frame 110 (3.63s), ends at frame 130 (4.29s)
+    for f in range(180):
+        # Default standing straight
+        k_angle = 175.0
+        t_angle = 10.0
+        depth = -0.10
+        
+        # False rep in setup window (starts < 2s)
+        if 10 <= f <= 40:
+            if f <= 25:
+                pct = (f - 10) / 15.0
+                k_angle = 175.0 - (85.0 * pct)
+                t_angle = 10.0 + (15.0 * pct)
+                depth = -0.10 + (0.13 * pct)
+            else:
+                pct = (f - 25) / 15.0
+                k_angle = 90.0 + (85.0 * pct)
+                t_angle = 25.0 - (15.0 * pct)
+                depth = 0.03 - (0.13 * pct)
+                
+        # Real rep after setup window (starts > 2s)
+        elif 90 <= f <= 130:
+            if f <= 110:
+                pct = (f - 90) / 20.0
+                k_angle = 175.0 - (85.0 * pct)
+                t_angle = 10.0 + (15.0 * pct)
+                depth = -0.10 + (0.13 * pct)
+            else:
+                pct = (f - 110) / 20.0
+                k_angle = 90.0 + (85.0 * pct)
+                t_angle = 25.0 - (15.0 * pct)
+                depth = 0.03 - (0.13 * pct)
+                
+        frames.append(generate_frame(f, k_angle, t_angle, depth, knee_caving=False))
+        
+    agent = DiagnosticAgent()
+    reps = agent.segment_reps(frames)
+    
+    # We expect exactly 1 rep (the second one). The first one was filtered out because start_time < 2.0s in a 6s video.
+    assert len(reps) == 1, "Should filter out the first rep as setup noise and only return the second rep."
+    assert reps[0]["start_frame"] >= 90 and reps[0]["start_frame"] <= 95, f"Expected rep to start between 90 and 95, got {reps[0]['start_frame']}"
+
+
