@@ -24,6 +24,7 @@ class WorkoutFeedbackSchema(BaseModel):
     workout_summary: str = Field(description="Brief high-level summary of the overall set performance, tempo, and main focus area.")
     perfect_reps_count: int = Field(description="Count of perfectly executed reps with good depth and stability.")
     reps: list[RepFeedbackSchema] = Field(description="List of rep-by-rep analysis feedback details.")
+    veo_coaching_prompt: str = Field(description="A highly detailed and descriptive video generation prompt (like for Google Veo) to generate a short, 5-second video. It must describe a professional athletic coach in a well-lit gym performing a squat. It must describe the coach starting by demonstrating the primary biomechanical fault observed in the telemetry (e.g. leaning forward, caving knees, or a shallow depth), and then smoothly demonstrating the corrective action to achieve textbook perfect form. Make sure the prompt is extremely detailed, describing visual style, smooth transition, clothing, gym environment, lighting, and explicit biomechanics, avoiding any dynamic text references like 'reps' or 'telemetry'.")
 
 # -------------------------------------------------------------
 
@@ -88,6 +89,7 @@ class CoachAgent:
         2. Analyze the physical joint telemetry trends organically using the Biomechanical Reference Standards to diagnose real movement faults.
         3. Provide exactly one high-impact, physiological coaching cue for each repetition (e.g. "push the ground away", "keep your eyes on the horizon", "imagine sitting back into a chair").
         4. Rate safety: DANGEROUS only if extreme spinal collapse (> 60 degrees) or severe knee caving occurred; WARNING if shallow or moderate/heavy deviations are present; SAFE if clean and within standard anatomical ranges.
+        5. Generate a highly detailed and descriptive `veo_coaching_prompt` to guide a video generation model (like Google Veo) to create a 5-second video. The prompt must describe a professional athletic coach in a well-lit gym showing a squat. It must describe the coach starting by demonstrating the primary biomechanical fault observed in the set (e.g., caving knees or excessive forward lean), and then showing a smooth transition as they correct their posture (e.g., driving their knees out or straightening their spine) to achieve perfect textbook squat form. Do not mention reps or JSON properties in the prompt; make it a pure visual scene description for a video model.
         
         CRITICAL TONE INSTRUCTION:
         Adopt an exceptionally motivational, positive, and encouraging coaching persona. Write all evaluations and cues in a supportive, empowering tone that builds the athlete's confidence, inspires them to improve, and drives them to execute better on their next set, while keeping their safety as the absolute highest priority.
@@ -181,10 +183,47 @@ class CoachAgent:
         else:
             summary = "We detected multiple biomechanical deviations. Prioritize keeping your torso upright and pushing your knees out to lift safely."
 
+        # Compile a fallback veo coaching prompt based on detected faults
+        faults_detected = []
+        for rep in reps_telemetry:
+            if rep["faults"].get("shallow_depth") and "depth" not in faults_detected:
+                faults_detected.append("depth")
+            if rep["faults"].get("excessive_forward_lean") and "lean" not in faults_detected:
+                faults_detected.append("lean")
+            if rep["faults"].get("knee_valgus") and "valgus" not in faults_detected:
+                faults_detected.append("valgus")
+
+        fallback_veo_prompt = "A high-fidelity video of a professional strength coach in a gym showing how to squat properly. "
+        if "lean" in faults_detected:
+            fallback_veo_prompt += (
+                "The coach starts at the bottom of the squat with a heavily forward-bent posture (bad form), "
+                "and then smoothly demonstrates the corrective action by straightening their back, raising their chest tall and proud, "
+                "and keeping their torso upright at a safe, natural 20-degree lean relative to vertical. A perfect visual transition showing bad form correcting to textbook form."
+            )
+        elif "valgus" in faults_detected:
+            fallback_veo_prompt += (
+                "The coach starts the ascent with their knees caving inward (bad knee valgus form), "
+                "and then smoothly demonstrates the corrective action by driving their knees straight out over their toes "
+                "to align perfectly over the ankles. A perfect visual transition showing bad form correcting to textbook form."
+            )
+        elif "depth" in faults_detected:
+            fallback_veo_prompt += (
+                "The coach starts the squat but stops shallow above parallel (bad form), "
+                "and then smoothly demonstrates the corrective action by sinking their hips back and down to reach full deep parallel depth "
+                "with perfect posture. A perfect visual transition showing bad form correcting to textbook form."
+            )
+        else:
+            fallback_veo_prompt += (
+                "The coach performs a textbook back squat with flawless form: controlled descent, "
+                "sinking hips deep to parallel, keeping the chest tall, knees tracking perfectly over the toes, and a smooth ascent. "
+                "Extremely educational, demonstrating perfect technique."
+            )
+
         result = WorkoutFeedbackSchema(
             workout_summary=summary,
             perfect_reps_count=perfect_count,
-            reps=reps_feedback
+            reps=reps_feedback,
+            veo_coaching_prompt=fallback_veo_prompt
         ).model_dump()
 
         logger.info("CoachAgent: Heuristic feedback generation complete.")

@@ -35,55 +35,61 @@ class SynthesisAgent:
         api_key = os.environ.get("GEMINI_API_KEY")
         if GENAI_AVAILABLE and api_key:
             try:
-                # Compile specific coaching demonstration prompt based on feedback
-                faults_detected = []
-                if coaching_feedback and "reps" in coaching_feedback:
-                    for rep in coaching_feedback["reps"]:
-                        desc = rep.get("posture_evaluation", "").lower() + " " + rep.get("depth_evaluation", "").lower()
-                        if "shallow" in desc and "depth" not in faults_detected:
-                            faults_detected.append("depth")
-                        if "lean" in desc and "lean" not in faults_detected:
-                            faults_detected.append("lean")
-                        if "valgus" in desc and "valgus" not in faults_detected:
-                            faults_detected.append("valgus")
-                
-                # Fallback to reps_telemetry if coaching_feedback is empty or missing
-                if not faults_detected:
-                    for rep in reps_telemetry:
-                        if rep["faults"].get("shallow_depth") and "depth" not in faults_detected:
-                            faults_detected.append("depth")
-                        if rep["faults"].get("excessive_forward_lean") and "lean" not in faults_detected:
-                            faults_detected.append("lean")
-                        if rep["faults"].get("knee_valgus") and "valgus" not in faults_detected:
-                            faults_detected.append("valgus")
-
-                veo_prompt = "A high-fidelity video of a professional strength coach in a gym showing how to squat properly. "
-                if "lean" in faults_detected:
-                    veo_prompt += (
-                        "The coach starts at the bottom of the squat with a heavily forward-bent posture (bad form), "
-                        "and then smoothly demonstrates the corrective action by straightening their back, raising their chest tall and proud, "
-                        "and keeping their torso upright at a safe, natural 20-degree lean relative to vertical. A perfect visual transition showing bad form correcting to textbook form."
-                    )
-                elif "valgus" in faults_detected:
-                    veo_prompt += (
-                        "The coach starts the ascent with their knees caving inward (bad knee valgus form), "
-                        "and then smoothly demonstrates the corrective action by driving their knees straight out over their toes "
-                        "to align perfectly over the ankles. A perfect visual transition showing bad form correcting to textbook form."
-                    )
-                elif "depth" in faults_detected:
-                    veo_prompt += (
-                        "The coach starts the squat but stops shallow above parallel (bad form), "
-                        "and then smoothly demonstrates the corrective action by sinking their hips back and down to reach full deep parallel depth "
-                        "with perfect posture. A perfect visual transition showing bad form correcting to textbook form."
-                    )
+                # Retrieve the dynamic veo_coaching_prompt generated organically by Gemini
+                if coaching_feedback and "veo_coaching_prompt" in coaching_feedback:
+                    veo_prompt = coaching_feedback["veo_coaching_prompt"]
+                    logger.info(f"SynthesisAgent: Dynamically generated Veo prompt retrieved from Gemini: {veo_prompt}")
                 else:
-                    veo_prompt += (
-                        "The coach performs a textbook back squat with flawless form: controlled descent, "
-                        "sinking hips deep to parallel, keeping the chest tall, knees tracking perfectly over the toes, and a smooth ascent. "
-                        "Extremely educational, demonstrating perfect technique."
-                    )
+                    logger.info("SynthesisAgent: Dynamic prompt missing from feedback. Compiling heuristic fallback prompt...")
+                    # Compile specific coaching demonstration prompt based on feedback/telemetry as a robust fallback
+                    faults_detected = []
+                    if coaching_feedback and "reps" in coaching_feedback:
+                        for rep in coaching_feedback["reps"]:
+                            desc = rep.get("posture_evaluation", "").lower() + " " + rep.get("depth_evaluation", "").lower()
+                            if "shallow" in desc and "depth" not in faults_detected:
+                                faults_detected.append("depth")
+                            if "lean" in desc and "lean" not in faults_detected:
+                                faults_detected.append("lean")
+                            if "valgus" in desc and "valgus" not in faults_detected:
+                                faults_detected.append("valgus")
+                    
+                    # Fallback to reps_telemetry if coaching_feedback is empty or missing
+                    if not faults_detected:
+                        for rep in reps_telemetry:
+                            if rep["faults"].get("shallow_depth") and "depth" not in faults_detected:
+                                faults_detected.append("depth")
+                            if rep["faults"].get("excessive_forward_lean") and "lean" not in faults_detected:
+                                faults_detected.append("lean")
+                            if rep["faults"].get("knee_valgus") and "valgus" not in faults_detected:
+                                faults_detected.append("valgus")
 
-                logger.info(f"SynthesisAgent: Formulated Veo Virtual Coach prompt: {veo_prompt}")
+                    veo_prompt = "A high-fidelity video of a professional strength coach in a gym showing how to squat properly. "
+                    if "lean" in faults_detected:
+                        veo_prompt += (
+                            "The coach starts at the bottom of the squat with a heavily forward-bent posture (bad form), "
+                            "and then smoothly demonstrates the corrective action by straightening their back, raising their chest tall and proud, "
+                            "and keeping their torso upright at a safe, natural 20-degree lean relative to vertical. A perfect visual transition showing bad form correcting to textbook form."
+                        )
+                    elif "valgus" in faults_detected:
+                        veo_prompt += (
+                            "The coach starts the ascent with their knees caving inward (bad knee valgus form), "
+                            "and then smoothly demonstrates the corrective action by driving their knees straight out over their toes "
+                            "to align perfectly over the ankles. A perfect visual transition showing bad form correcting to textbook form."
+                        )
+                    elif "depth" in faults_detected:
+                        veo_prompt += (
+                            "The coach starts the squat but stops shallow above parallel (bad form), "
+                            "and then smoothly demonstrates the corrective action by sinking their hips back and down to reach full deep parallel depth "
+                            "with perfect posture. A perfect visual transition showing bad form correcting to textbook form."
+                        )
+                    else:
+                        veo_prompt += (
+                            "The coach performs a textbook back squat with flawless form: controlled descent, "
+                            "sinking hips deep to parallel, keeping the chest tall, knees tracking perfectly over the toes, and a smooth ascent. "
+                            "Extremely educational, demonstrating perfect technique."
+                        )
+
+                    logger.info(f"SynthesisAgent: Formulated fallback Veo prompt: {veo_prompt}")
                 client = genai.Client(api_key=api_key)
                 
                 logger.info("SynthesisAgent: Querying Google Veo video generation endpoint ('veo-2.0-generate-001') for virtual coach demo...")
