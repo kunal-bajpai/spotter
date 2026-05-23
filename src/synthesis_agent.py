@@ -37,7 +37,11 @@ class SynthesisAgent:
             try:
                 # Retrieve the dynamic veo_coaching_prompt generated organically by Gemini
                 if coaching_feedback and "veo_coaching_prompt" in coaching_feedback:
+                    person_desc = coaching_feedback.get("person_description", "")
                     veo_prompt = coaching_feedback["veo_coaching_prompt"]
+                    if person_desc and person_desc.lower() not in veo_prompt.lower():
+                        logger.info("SynthesisAgent: Merging person_description into veo_prompt for identity preservation.")
+                        veo_prompt = f"A video of a person matching this physical description: {person_desc}. {veo_prompt}"
                     logger.info(f"SynthesisAgent: Dynamically generated Veo prompt retrieved from Gemini: {veo_prompt}")
                 else:
                     logger.info("SynthesisAgent: Dynamic prompt missing from feedback. Compiling heuristic fallback prompt...")
