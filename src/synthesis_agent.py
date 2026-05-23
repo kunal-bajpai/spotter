@@ -165,13 +165,21 @@ class SynthesisAgent:
                     dy = ty - cy
                     
                     if dx != 0 or dy != 0:
-                        # Define radius based on joint type
+                        # Cap the maximum displacement to prevent extreme visual stretching
+                        max_disp = int(width * 0.05) # 5% of video width (approx 32 pixels) is highly safe
+                        disp_len = np.sqrt(dx**2 + dy**2)
+                        if disp_len > max_disp:
+                            dx = int(dx * (max_disp / disp_len))
+                            dy = int(dy * (max_disp / disp_len))
+                            
+                        # Define localized radius based on joint type (smaller is more precise and distortion-free)
                         if joint_name == "shoulder":
-                            radius = int(width * 0.22)
+                            radius = int(width * 0.12)
                         elif joint_name == "hip":
-                            radius = int(width * 0.20)
+                            radius = int(width * 0.10)
                         else:
-                            radius = int(width * 0.16)
+                            radius = int(width * 0.08)
+                            
                         warp_targets.append((cx, cy, dx, dy, radius))
                         
         if not warp_targets:
