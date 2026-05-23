@@ -82,14 +82,23 @@ class SynthesisAgent:
                 while not operation.done and wait_count < max_wait:
                     logger.info("SynthesisAgent: Waiting for cloud video model to synthesize perfect form... (polling 10s)")
                     time.sleep(10)
+                    operation = client.operations.get(operation)
                     wait_count += 1
                     
                 if operation.done:
-                    video_result = operation.result()
-                    # Write the resulting video bytes to the output path
-                    with open(output_path, "wb") as f:
-                        f.write(video_result.video_bytes)
-                    logger.info(f"SynthesisAgent: Cloud video generated and saved successfully to {output_path}")
+                    # Access the generated video response (could be in .result or .response)
+                    res = operation.result if (hasattr(operation, "result") and operation.result) else getattr(operation, "response", None)
+                    if res and res.generated_videos:
+                        generated_video = res.generated_videos[0]
+                        logger.info("SynthesisAgent: Video generation complete on cloud. Downloading video file...")
+                        video_bytes = client.files.download(file=generated_video.video)
+                        
+                        # Write the resulting video bytes to the output path
+                        with open(output_path, "wb") as f:
+                            f.write(video_bytes)
+                        logger.info(f"SynthesisAgent: Cloud video generated and saved successfully to {output_path}")
+                    else:
+                        raise ValueError("No generated video list found in operation result/response.")
                     
                     # Clean up the uploaded cloud file
                     try:
