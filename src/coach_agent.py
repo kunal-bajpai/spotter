@@ -24,8 +24,8 @@ class WorkoutFeedbackSchema(BaseModel):
     workout_summary: str = Field(description="Brief high-level summary of the overall set performance, tempo, and main focus area.")
     perfect_reps_count: int = Field(description="Count of perfectly executed reps with good depth and stability.")
     reps: list[RepFeedbackSchema] = Field(description="List of rep-by-rep analysis feedback details.")
-    person_description: str = Field(description="An extremely detailed physical description of the person performing the squat in the original video. Visually inspect the video and describe the person's gender, ethnicity, approximate age, hair style and color, physical build/physique, and the precise details of their attire (e.g., style, colors, and features of their shirt, shorts or pants, shoes). If no video file is attached or the video upload fails, default to a standard description of a professional athletic trainee.")
-    veo_coaching_prompt: str = Field(description="A highly detailed and descriptive video generation prompt (like for Google Veo) to generate a short, 5-second video. It must describe a professional athletic coach in a well-lit gym performing a squat. The coach must exactly match the physical features, hair style, build, and clothing described in the `person_description` field. The coach must NOT talk, open their mouth, or move their lips; they must remain completely silent and perform the squat with closed lips and a focused expression. It must describe the coach starting by demonstrating the primary biomechanical fault observed in the telemetry (e.g. leaning forward, caving knees, or a shallow depth), and then smoothly demonstrating the corrective action to achieve textbook perfect form. Make sure the prompt is extremely detailed, describing visual style, smooth transition, clothing, gym environment, lighting, and explicit biomechanics, avoiding any dynamic text references like 'reps' or 'telemetry'.")
+    person_description: str = Field(description="An extremely detailed physical description of the person performing the squat in the original video. Visually inspect the video and describe the person's gender, approximate age, hair style and color, physical build/physique, and the precise details of their attire (e.g., style, colors, and features of their shirt, shorts or pants, shoes). Do NOT include any racial or ethnic details in this description. If no video file is attached or the video upload fails, default to a standard description of a professional athletic trainee.")
+    veo_coaching_prompt: str = Field(description="A highly detailed and descriptive video generation prompt (like for Google Veo) to generate a short, 5-second video. It must describe a professional athletic coach in a well-lit gym performing a squat. The coach must exactly match the physical features, hair style, build, and clothing described in the `person_description` field (excluding any racial or ethnic details). The coach must NOT talk, open their mouth, or move their lips; they must remain completely silent and perform the squat with closed lips and a focused expression. It must describe the coach starting by demonstrating the primary biomechanical fault observed in the telemetry (e.g. leaning forward, caving knees, or a shallow depth), and then smoothly demonstrating the corrective action to achieve textbook perfect form. Make sure the prompt is extremely detailed, describing visual style, smooth transition, clothing, gym environment, lighting, and explicit biomechanics, avoiding any dynamic text references like 'reps' or 'telemetry'.")
 
 # -------------------------------------------------------------
 
@@ -91,9 +91,9 @@ class CoachAgent:
         2. Analyze the physical joint telemetry trends organically using the Biomechanical Reference Standards to diagnose real movement faults.
         3. Provide exactly one high-impact, physiological coaching cue for each repetition (e.g. "push the ground away", "keep your eyes on the horizon", "imagine sitting back into a chair").
         4. Rate safety: DANGEROUS only if extreme spinal collapse (> 60 degrees) or severe knee caving occurred; WARNING if shallow or moderate/heavy deviations are present; SAFE if clean and within standard anatomical ranges.
-        5. Generate a highly detailed and precise `person_description` by visually inspecting the attached video file to identify the user's gender, ethnicity, approximate age, clothing (e.g., color and style of t-shirt, shorts/pants), hair color/style, and physical features.
+        5. Generate a highly detailed and precise `person_description` by visually inspecting the attached video file to identify the user's gender, approximate age, clothing (e.g., color and style of t-shirt, shorts/pants), hair color/style, and physical features. Do NOT include any racial or ethnic details in this description.
         6. Generate a highly detailed and descriptive `veo_coaching_prompt` to guide a video generation model (like Google Veo) to create a 5-second video.
-           - Incorporate the visual details from the `person_description` field organically into the prompt's description of the coach (e.g., 'A professional athletic male coach of [ethnicity] in his [age range] with [hair style], wearing a [description of clothes]...'), ensuring that the coach generated by Veo matches the user's physical appearance and attire in the original video for high-fidelity identity consistency.
+           - Incorporate the visual details from the `person_description` field organically into the prompt's description of the coach (e.g., 'A professional athletic male coach in his [age range] with [hair style], wearing a [description of clothes]...'), ensuring that the coach generated by Veo matches the user's physical appearance and attire in the original video for high-fidelity identity consistency (excluding any racial or ethnic details).
            - Describe the coach starting by demonstrating the primary biomechanical fault observed in the set (e.g., caving knees or excessive forward lean), and then showing a smooth transition as they correct their posture (e.g., driving their knees out or straightening their spine) to achieve perfect textbook squat form. The coach must NOT talk, open their mouth, or move their lips; they must perform the entire squat silently with closed lips and a focused athletic expression. Do not mention reps or JSON properties in the prompt; make it a pure visual scene description for a video model.
         
         CRITICAL TONE INSTRUCTION:
@@ -270,4 +270,46 @@ class CoachAgent:
 
         logger.info("CoachAgent: Heuristic feedback generation complete.")
         return result
+
+    def generate_audio_commentary(self, text: str, output_path: str = "veo_coaching_audio.mp3") -> str:
+        """
+        Queries Gemini to perform text-to-speech conversion of the coaching summary
+        and saves the audio bytes natively.
+        """
+        logger.info(f"CoachAgent: Generating native audio commentary for text: '{text}'")
+        if not self.client:
+            logger.warning("CoachAgent: No Gemini client available. Skipping audio commentary generation.")
+            return None
+
+        try:
+            # We use gemini-2.0-flash as it supports high-fidelity audio generation natively
+            response = self.client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=f"Please read the following athletic squat coaching feedback in an encouraging, professional, and clear coaching voice without saying anything else: {text}",
+                config=types.GenerateContentConfig(
+                    response_modalities=["AUDIO"],
+                    speech_config=types.SpeechConfig(
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                voice_name="Kore", # High-fidelity athletic tone
+                            )
+                        )
+                    )
+                )
+            )
+
+            # Extract the raw audio bytes from the response parts
+            for part in response.candidates[0].content.parts:
+                if part.inline_data and part.inline_data.data:
+                    # Write audio bytes directly to the output file
+                    with open(output_path, "wb") as f:
+                        f.write(part.inline_data.data)
+                    logger.info(f"CoachAgent: Native coaching audio saved successfully to {output_path}")
+                    return output_path
+
+            logger.warning("CoachAgent: No inline audio data found in response parts.")
+            return None
+        except Exception as e:
+            logger.error(f"CoachAgent: Failed to generate audio commentary using Gemini: {e}")
+            return None
 

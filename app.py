@@ -603,11 +603,20 @@ if st.session_state.analyzed and st.session_state.feedback:
 
     # 2.5 Google Veo Virtual Coach Demonstration Video
     veo_demo_path = "veo_coaching_demo.mp4"
+    veo_audio_path = "veo_coaching_audio.mp3"
+    
     if os.path.exists(veo_demo_path):
         st.markdown("### 🏋️‍♂️ Virtual Coach Demonstration Video (Google Veo)")
         st.write("A high-fidelity coaching demonstration generated dynamically in the cloud by Google Veo showing bad form correcting to perfect textbook technique based on your coaching cues.")
+        
+        # Play the dynamic Gemini Live audio commentary track if generated successfully
+        if os.path.exists(veo_audio_path):
+            st.markdown("🔊 **Dynamic Coach Voice Commentary (Gemini Live API):**")
+            st.audio(veo_audio_path, format="audio/mp3", autoplay=False)
+            
         st.video(veo_demo_path)
-        st.info("ℹ️ **Audio Support Note**: Google Veo (`veo-2.0-generate-001`) operates exclusively as a silent, visual-only model. Native synchronized sound effects generation is restricted on standard Google AI Studio Developer API keys, which requires premium Gemini Enterprise / Vertex AI platform levels. Hence, this generated coach video is silent by design.")
+        st.info("ℹ️ **Audio Integration Note**: Because Google Veo (`veo-2.0-generate-001`) is a silent visual-only model under Developer API tiers, we utilize the **Gemini Live API audio modality** (`gemini-2.0-flash`) to dynamically generate a matching high-fidelity professional voice commentary track, played beautifully alongside the coach demonstration.")
+
 
     # 3. Rep-by-Rep Detail Carousel
     st.markdown("### 🏋️‍♂️ Rep-by-Rep Biomechanical Breakdown")

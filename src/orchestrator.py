@@ -30,13 +30,14 @@ class MasterOrchestrator:
         """
         logger.info(f"MasterOrchestrator: Ingesting video: {video_path}")
         
-        # Remove any stale veo coaching demo video from previous runs
-        if os.path.exists("veo_coaching_demo.mp4"):
-            try:
-                os.remove("veo_coaching_demo.mp4")
-                logger.info("MasterOrchestrator: Stale veo_coaching_demo.mp4 deleted.")
-            except Exception as e:
-                logger.warning(f"MasterOrchestrator: Could not delete stale veo demo: {e}")
+        # Remove any stale veo coaching files from previous runs
+        for stale_file in ["veo_coaching_demo.mp4", "veo_coaching_audio.mp3"]:
+            if os.path.exists(stale_file):
+                try:
+                    os.remove(stale_file)
+                    logger.info(f"MasterOrchestrator: Stale {stale_file} deleted.")
+                except Exception as e:
+                    logger.warning(f"MasterOrchestrator: Could not delete stale file {stale_file}: {e}")
         
         if not os.path.exists(video_path):
             logger.error(f"MasterOrchestrator: Video file does not exist: {video_path}")
@@ -71,6 +72,17 @@ class MasterOrchestrator:
         # 3. Cognitive Coach Agent: invoke Gemini for rep critiques with multimodal video understanding
         logger.info("-------------------- STEP 3: Cognitive Coaching --------------------")
         coaching_feedback = self.coach_agent.generate_feedback(reps_telemetry, video_path=video_path)
+
+        # 3.5 Generate dynamic audio commentary from the coach's summary using Gemini Audio Modality
+        if coaching_feedback and "workout_summary" in coaching_feedback:
+            summary_text = coaching_feedback["workout_summary"]
+            if "reps" in coaching_feedback and coaching_feedback["reps"]:
+                cues = [f"Rep {r['rep_index']}: {r['coaching_cue']}" for r in coaching_feedback["reps"]]
+                summary_text += " " + " ".join(cues)
+            try:
+                self.coach_agent.generate_audio_commentary(summary_text, "veo_coaching_audio.mp3")
+            except Exception as audio_err:
+                logger.warning(f"MasterOrchestrator: Dynamic audio commentary generation failed: {audio_err}")
 
         # 4. Correction Synthesis Agent: render the side-by-side corrected form video and Veo demo video
         logger.info("-------------------- STEP 4: Visual Perfect-Form Synthesis --------------------")
