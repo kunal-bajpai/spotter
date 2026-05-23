@@ -207,5 +207,23 @@ class DiagnosticAgent:
                     current_state = "STAND"
                     rep_start_frame = None
 
-        logger.info(f"DiagnosticAgent: Rep segmentation completed. Total reps identified: {len(reps)}.")
-        return reps
+        # Post-filter segmented repetitions to eliminate high-frequency tracking noise sways and setup wiggles
+        filtered_reps = []
+        for rep in reps:
+            duration = rep["end_time"] - rep["start_time"]
+            min_knee = rep["metrics"]["min_knee_angle"]
+            
+            # Constraints:
+            # 1. Squat duration must be >= 0.5s (anything faster is a MediaPipe coordinate tracking jitter spike).
+            # 2. Knee angle must dip below 150 degrees (wiggles where the athlete sways at setup are filtered).
+            if duration >= 0.5 and min_knee < 150.0:
+
+                rep["rep_index"] = len(filtered_reps) + 1
+                filtered_reps.append(rep)
+            else:
+                logger.info(f"DiagnosticAgent: Filtering out false positive rep #{rep['rep_index']} "
+                            f"(Duration: {duration:.2f}s, Min Knee: {min_knee:.1f}deg) as noise.")
+        
+        logger.info(f"DiagnosticAgent: Rep segmentation completed. Total reps identified after filtering: {len(filtered_reps)}.")
+        return filtered_reps
+
