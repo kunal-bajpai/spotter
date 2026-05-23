@@ -293,43 +293,41 @@ class CoachAgent:
             return None
 
         try:
-            # We try gemini-2.0-flash first, and fallback to gemini-2.0-flash-exp if modalities are rejected
-            try:
-                logger.info("CoachAgent: Attempting audio generation using model 'gemini-2.0-flash'...")
-                response = self.client.models.generate_content(
-                    model="gemini-2.0-flash",
-                    contents=f"Please read the following athletic squat coaching feedback in an encouraging, professional, and clear coaching voice without saying anything else: {text}",
-                    config=types.GenerateContentConfig(
-                        response_modalities=["AUDIO"],
-                        speech_config=types.SpeechConfig(
-                            voice_config=types.VoiceConfig(
-                                prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                                    voice_name="Kore", # High-fidelity athletic tone
-                                )
-                            )
-                        )
-                    )
-                )
-            except Exception as flash_err:
-                # Capture modality errors or bad requests to trigger experimental fallback retry
-                if "modalities" in str(flash_err).lower() or "400" in str(flash_err):
-                    logger.info("CoachAgent: Model 'gemini-2.0-flash' audio modality not supported. Retrying with 'gemini-2.0-flash-exp'...")
+            # We try gemini-3.1-flash-tts-preview first as it supports standard generate_content text-to-speech,
+            # and fallback to gemini-2.0-flash or gemini-2.0-flash-exp if needed.
+            response = None
+            models_to_attempt = [
+                "gemini-3.1-flash-tts-preview",
+                "gemini-2.0-flash",
+                "gemini-2.0-flash-exp"
+            ]
+            
+            last_err = None
+            for model in models_to_attempt:
+                try:
+                    logger.info(f"CoachAgent: Attempting audio generation using model '{model}'...")
                     response = self.client.models.generate_content(
-                        model="gemini-2.0-flash-exp",
+                        model=model,
                         contents=f"Please read the following athletic squat coaching feedback in an encouraging, professional, and clear coaching voice without saying anything else: {text}",
                         config=types.GenerateContentConfig(
                             response_modalities=["AUDIO"],
                             speech_config=types.SpeechConfig(
                                 voice_config=types.VoiceConfig(
                                     prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                                        voice_name="Kore",
+                                        voice_name="Kore", # High-fidelity athletic tone
                                     )
                                 )
                             )
                         )
                     )
-                else:
-                    raise flash_err
+                    logger.info(f"CoachAgent: Audio generation succeeded using model '{model}'!")
+                    break
+                except Exception as model_err:
+                    logger.warning(f"CoachAgent: Audio generation failed with '{model}': {model_err}")
+                    last_err = model_err
+
+            if response is None:
+                raise last_err if last_err else Exception("No models succeeded in generating audio.")
 
             # Extract the raw PCM bytes from response parts
             pcm_bytes = None
