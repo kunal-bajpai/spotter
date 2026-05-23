@@ -616,6 +616,22 @@ if st.session_state.analyzed and st.session_state.feedback:
             
         st.video(veo_demo_path)
         st.info("ℹ️ **Audio Integration Note**: Because Google Veo (`veo-2.0-generate-001`) is a silent visual-only model under Developer API tiers, we utilize the **Gemini Live API audio modality** (`gemini-2.0-flash`) to dynamically generate a matching high-fidelity professional voice commentary track, played beautifully alongside the coach demonstration.")
+    else:
+        # Display a highly premium user-friendly diagnostic warning if Veo video could not be generated due to billing/prepay depletion
+        st.markdown("""
+        <div class="glass-card warning-glow">
+            <h4 style='margin:0 0 8px 0;color:#FFD600;'>⚠️ Cloud Virtual Coach Demonstration Unavailable</h4>
+            <p style='margin:0;line-height:1.6;font-size:0.95rem;'>
+                The dynamic cloud-based Google Veo coach demo video is currently unavailable. 
+                <br><br>
+                <b>Detected Root Cause:</b> Your Google AI Studio billing tier has reached its prepayment balance limit, resulting in a <code>429 RESOURCE_EXHAUSTED</code> error during synthesis.
+                <br><br>
+                To restore dynamic photorealistic virtual coach generation, please visit the <a href="https://aistudio.google.com/" target="_blank" style="color:#FFD600;font-weight:600;text-decoration:underline;">Google AI Studio Console</a> and top up your prepay billing credits. 
+                In the meantime, our offline side-by-side skeletal wireframe overlay is fully operational and rendering above!
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
 
 
 

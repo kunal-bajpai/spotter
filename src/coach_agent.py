@@ -282,21 +282,43 @@ class CoachAgent:
             return None
 
         try:
-            # We use gemini-2.0-flash as it supports high-fidelity audio generation natively
-            response = self.client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=f"Please read the following athletic squat coaching feedback in an encouraging, professional, and clear coaching voice without saying anything else: {text}",
-                config=types.GenerateContentConfig(
-                    response_modalities=["AUDIO"],
-                    speech_config=types.SpeechConfig(
-                        voice_config=types.VoiceConfig(
-                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                                voice_name="Kore", # High-fidelity athletic tone
+            # We try gemini-2.0-flash first, and fallback to gemini-2.0-flash-exp if modalities are rejected
+            try:
+                logger.info("CoachAgent: Attempting audio generation using model 'gemini-2.0-flash'...")
+                response = self.client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=f"Please read the following athletic squat coaching feedback in an encouraging, professional, and clear coaching voice without saying anything else: {text}",
+                    config=types.GenerateContentConfig(
+                        response_modalities=["AUDIO"],
+                        speech_config=types.SpeechConfig(
+                            voice_config=types.VoiceConfig(
+                                prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                    voice_name="Kore", # High-fidelity athletic tone
+                                )
                             )
                         )
                     )
                 )
-            )
+            except Exception as flash_err:
+                # Capture modality errors or bad requests to trigger experimental fallback retry
+                if "modalities" in str(flash_err).lower() or "400" in str(flash_err):
+                    logger.info("CoachAgent: Model 'gemini-2.0-flash' audio modality not supported. Retrying with 'gemini-2.0-flash-exp'...")
+                    response = self.client.models.generate_content(
+                        model="gemini-2.0-flash-exp",
+                        contents=f"Please read the following athletic squat coaching feedback in an encouraging, professional, and clear coaching voice without saying anything else: {text}",
+                        config=types.GenerateContentConfig(
+                            response_modalities=["AUDIO"],
+                            speech_config=types.SpeechConfig(
+                                voice_config=types.VoiceConfig(
+                                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                        voice_name="Kore",
+                                    )
+                                )
+                            )
+                        )
+                    )
+                else:
+                    raise flash_err
 
             # Extract the raw PCM bytes from response parts
             pcm_bytes = None
@@ -317,6 +339,7 @@ class CoachAgent:
                     wav_file.setsampwidth(sample_width)
                     wav_file.setframerate(sample_rate)
                     wav_file.writeframes(pcm_bytes)
+
 
                 logger.info(f"CoachAgent: Native coaching PCM audio successfully wrapped and saved as WAV to {output_path}")
                 return output_path
