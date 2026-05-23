@@ -1,25 +1,130 @@
 import cv2
 import copy
 import numpy as np
+import os
 from src.utils.logger import logger
+
+# Import Google GenAI SDK if available
+try:
+    from google import genai
+    from google.genai import types
+    GENAI_AVAILABLE = True
+except ImportError:
+    GENAI_AVAILABLE = False
+    logger.warning("google-genai SDK not available. SynthesisAgent will run in local skeletal overlay fallback mode.")
 
 class SynthesisAgent:
     """
-    Correction Synthesis Agent (Omni Generative Core Simulator)
-    Simulates the Omni video-to-video pose guidance diffusion pipeline.
-    It reads the original video, retrieves the real MediaPipe frame coordinates,
-    and overlays the actual skeletal positions side-by-side with the biomechanically corrected "ideal" pose.
+    Correction Synthesis Agent (Omni Generative U-Net & Veo API Connector)
+    Coordinates the video-to-video pose guidance and diffusion pipeline.
+    Connects directly to Google GenAI's Gemini Omni and Veo APIs to generate/edit
+    perfect-form videos, or falls back to custom static side-by-side skeletal overlays.
     """
     def __init__(self):
         logger.info("SynthesisAgent initialized.")
 
     def generate_ideal_video(self, video_path: str, raw_frames: list[dict], reps_telemetry: list[dict], output_path: str = "output_corrected.mp4") -> str:
         """
-        Creates a side-by-side comparison video.
-        Left: Original user video with real red/orange tracked skeleton.
-        Right: Original background/user body with a green mathematically corrected skeleton.
+        Creates a perfect-form corrected video.
+        Attempts to query Google's premium Gemini Omni (video-to-video edit) or Veo (video generation) APIs.
+        Falls back to generating a side-by-side comparison video using local skeletal overlays.
         """
-        logger.info(f"SynthesisAgent: Creating real skeletal overlay video from {video_path}...")
+        logger.info(f"SynthesisAgent: Synthesizing ideal video from {video_path}...")
+        
+        # ----------------- OPTION 1: Gemini Omni / Veo Cloud API Path -----------------
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if GENAI_AVAILABLE and api_key:
+            try:
+                logger.info("SynthesisAgent: Attempting Gemini Omni / Veo cloud video synthesis...")
+                client = genai.Client(api_key=api_key)
+                
+                # 1. Upload video to Google's GenAI File Manager
+                logger.info(f"SynthesisAgent: Uploading source video to GenAI File Manager: {video_path}")
+                uploaded_file = client.files.upload(file=video_path)
+                logger.info(f"SynthesisAgent: Video uploaded successfully. Cloud URI: {uploaded_file.uri}")
+                
+                # 2. Extract active faults to compose a highly detailed prompt
+                active_faults = []
+                for rep in reps_telemetry:
+                    for fault_name, triggered in rep["faults"].items():
+                        if triggered and fault_name not in active_faults:
+                            active_faults.append(fault_name.replace("_", " "))
+                            
+                correction_prompt = (
+                    "Biomechanical Squat Form Correction: Edit this person performing the squat to demonstrate perfect form. "
+                    "Make sure to keep the user's face, clothes, gym background, and equipment 100% consistent. "
+                )
+                if "shallow depth" in active_faults:
+                    correction_prompt += "Ensure the hips sink lower at the bottom of the squat to achieve full parallel depth. "
+                if "excessive forward lean" in active_faults:
+                    correction_prompt += "Upright the torso and chest to a safe, natural 20-degree lean relative to vertical at the bottom. "
+                if "knee valgus" in active_faults:
+                    correction_prompt += "Keep the knees tracking straight out over the toes during the ascent. "
+                    
+                logger.info(f"SynthesisAgent: Formulated correction prompt: {correction_prompt}")
+                
+                # 3. Try calling Gemini Omni Flash conversational video edit API first
+                try:
+                    logger.info("SynthesisAgent: Querying 'gemini-omni-flash' conversational edit endpoint...")
+                    operation = client.models.edit_video(
+                        model="gemini-omni-flash",
+                        video=uploaded_file,
+                        prompt=correction_prompt,
+                        config=types.EditVideoConfig(
+                            aspect_ratio="16:9",
+                            duration_seconds=5,
+                            watermark_synth_id=True
+                        )
+                    )
+                except Exception as omni_err:
+                    # 4. Fallback to Veo Video Generation API if Omni-edit fails or is not enabled
+                    logger.warning(f"SynthesisAgent: Gemini Omni-edit API call failed: {omni_err}. "
+                                   f"Falling back to Veo Video Generation API ('veo-2.0-generate-001')...")
+                    
+                    operation = client.models.generate_videos(
+                        model="veo-2.0-generate-001",
+                        prompt=f"A high-fidelity video of the same athlete performing a perfect back squat. {correction_prompt}",
+                        config=types.GenerateVideosConfig(
+                            aspect_ratio="16:9",
+                            duration_seconds=5,
+                        )
+                    )
+                
+                # 5. Poll the long-running operation
+                import time
+                wait_count = 0
+                max_wait = 18  # Wait up to 180 seconds (10s intervals)
+                
+                while not operation.done and wait_count < max_wait:
+                    logger.info("SynthesisAgent: Waiting for cloud video model to synthesize perfect form... (polling 10s)")
+                    time.sleep(10)
+                    wait_count += 1
+                    
+                if operation.done:
+                    video_result = operation.result()
+                    # Write the resulting video bytes to the output path
+                    with open(output_path, "wb") as f:
+                        f.write(video_result.video_bytes)
+                    logger.info(f"SynthesisAgent: Cloud video generated and saved successfully to {output_path}")
+                    
+                    # Clean up the uploaded cloud file
+                    try:
+                        client.files.delete(name=uploaded_file.name)
+                        logger.info("SynthesisAgent: Cloud temp file cleaned up successfully.")
+                    except Exception as del_err:
+                        logger.warning(f"SynthesisAgent: Could not delete cloud temp file: {del_err}")
+                        
+                    return output_path
+                else:
+                    logger.warning("SynthesisAgent: Cloud video generation timed out. Falling back to local skeletal overlays.")
+                    
+            except Exception as cloud_err:
+                logger.error(f"SynthesisAgent: Google cloud video API call failed: {cloud_err}. "
+                             f"This typically means your GEMINI_API_KEY is standard and lacks billing/preview access to paid Veo/Omni video endpoints yet. "
+                             f"Falling back gracefully to local side-by-side skeletal wireframe overlays.")
+
+        # ----------------- OPTION 2: Local Skeletal Overlay Fallback Path -----------------
+        logger.info("SynthesisAgent: Commencing local side-by-side skeletal overlay rendering...")
         
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
@@ -31,15 +136,14 @@ class SynthesisAgent:
             fps = 30.0
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
         # Output video will be side-by-side (2 * width, height)
-        # We write to a temporary file first, then transcode to H.264 for HTML5 browser compatibility
+        # We write to a temporary file first, then transcode to H.264
         self.temp_path = "temp_synthesis_output.mp4"
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out = cv2.VideoWriter(self.temp_path, fourcc, fps, (width * 2, height))
 
-        # We map frames inside identified faulty reps
+        # Map frame indices inside identified repetitions
         faulty_frames_map = {}
         for rep in reps_telemetry:
             for f_id in range(rep["start_frame"], rep["end_frame"] + 1):
@@ -47,9 +151,7 @@ class SynthesisAgent:
 
         # Quick lookup for frame landmarks
         frames_lookup = {f["frame_id"]: f for f in raw_frames}
-
         frame_idx = 0
-        logger.info("SynthesisAgent: Commencing real coordinate skeletal mapping...")
 
         while cap.isOpened():
             ret, frame = cap.read()
@@ -59,18 +161,16 @@ class SynthesisAgent:
             left_frame = frame.copy()
             right_frame = frame.copy()
 
-            # If we have real landmark coordinates for this frame, draw them!
             if frame_idx in frames_lookup:
                 frame_data = frames_lookup[frame_idx]
                 lms = frame_data["landmarks"]
                 
-                # Check if this frame is inside an identified repetition
                 if frame_idx in faulty_frames_map:
                     rep = faulty_frames_map[frame_idx]
                     faults = rep["faults"]
                     has_faults = any(faults.values())
                     
-                    # Draw only the simplified Rep count on both frames (no other text alerts)
+                    # Draw only the simplified Rep count on both frames
                     color_actual = (0, 0, 255) if has_faults else (0, 165, 255)
                     cv2.putText(left_frame, f"Rep {rep['rep_index']}", (30, 50), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 1.0, color_actual, 2, cv2.LINE_AA)
@@ -86,19 +186,15 @@ class SynthesisAgent:
                     # Compute corrected landmarks dynamically based on original landmarks
                     corrected_lms = self._compute_ideal_landmarks(lms, faults)
                     
-                    # Smoothly warp the actual body of the person in right_frame to match the corrected posture
-                    right_frame = self._warp_image_smoothly(right_frame, lms, corrected_lms, width, height)
-                    
-                    # Draw OMNI Corrected skeleton overlay on top of the warped body
+                    # Draw OMNI Corrected skeleton overlay directly on top of the original body (NO warping!)
                     self._draw_real_skeleton(right_frame, corrected_lms, color=color_ideal, width=width, height=height)
                     
                 else:
-                    # Outside reps / setup: Draw standard cyan tracking skeleton with no text overlays
-                    color_tracking = (255, 255, 0) # Cyan in BGR
+                    # Outside reps / setup: Draw standard cyan tracking skeleton
+                    color_tracking = (255, 255, 0)
                     self._draw_real_skeleton(left_frame, lms, color=color_tracking, width=width, height=height)
                     self._draw_real_skeleton(right_frame, lms, color=color_tracking, width=width, height=height)
             else:
-                # No landmarks detected in frame: do not overlay any text
                 pass
 
             combined_frame = np.hstack((left_frame, right_frame))
@@ -108,9 +204,8 @@ class SynthesisAgent:
         cap.release()
         out.release()
 
-        # Transcode the completed MPEG-4 video to a browser-compatible H.264 standard using FFMpeg
+        # Transcode video to browser-playable H.264
         import subprocess
-        import os
         try:
             logger.info("SynthesisAgent: Transcoding compiled video to browser-playable H.264 codec...")
             cmd = [
@@ -120,92 +215,17 @@ class SynthesisAgent:
             ]
             subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
             
-            # Clean up temporary file
             if os.path.exists(self.temp_path):
                 os.remove(self.temp_path)
             logger.info(f"SynthesisAgent: Browser-friendly H.264 video transcoded successfully to {output_path}")
         except Exception as err:
-            logger.warning(f"SynthesisAgent: FFMpeg H.264 transcode failed: {err}. Falling back to default MPEG-4.")
-            # Graceful fallback: rename the temporary file directly to the output path
+            logger.warning(f"SynthesisAgent: FFMpeg transcode failed: {err}. Falling back directly to MPEG-4.")
             if os.path.exists(self.temp_path):
                 if os.path.exists(output_path):
                     os.remove(output_path)
                 os.rename(self.temp_path, output_path)
                 
         return output_path
-
-
-    def _warp_image_smoothly(self, img, actual_lms: dict, corrected_lms: dict, width: int, height: int) -> np.ndarray:
-        """
-        Applies a smooth 2D vector deformation field (Photoshop Liquify-style warping) 
-        to physically shift the person's body in the video to align with the corrected skeleton.
-        """
-        # Create coordinate grid maps
-        grid_x, grid_y = np.meshgrid(np.arange(width, dtype=np.float32), np.arange(height, dtype=np.float32))
-        
-        map_x = grid_x.copy()
-        map_y = grid_y.copy()
-        
-        # We define joint pairings to warp: (Actual Landmark, Corrected Landmark, Radius of Influence)
-        warp_targets = []
-        
-        # Core joints to warp
-        for side in ["left", "right"]:
-            for joint_name in ["shoulder", "hip", "knee"]:
-                lm_key = f"{side}_{joint_name}"
-                if lm_key in actual_lms and lm_key in corrected_lms:
-                    act_pt = actual_lms[lm_key]
-                    corr_pt = corrected_lms[lm_key]
-                    
-                    # Compute pixel coordinates
-                    cx, cy = int(act_pt["x"] * width), int(act_pt["y"] * height)
-                    tx, ty = int(corr_pt["x"] * width), int(corr_pt["y"] * height)
-                    
-                    dx = tx - cx
-                    dy = ty - cy
-                    
-                    if dx != 0 or dy != 0:
-                        # Cap the maximum displacement to prevent extreme visual stretching
-                        max_disp = int(width * 0.05) # 5% of video width (approx 32 pixels) is highly safe
-                        disp_len = np.sqrt(dx**2 + dy**2)
-                        if disp_len > max_disp:
-                            dx = int(dx * (max_disp / disp_len))
-                            dy = int(dy * (max_disp / disp_len))
-                            
-                        # Define localized radius based on joint type (smaller is more precise and distortion-free)
-                        if joint_name == "shoulder":
-                            radius = int(width * 0.12)
-                        elif joint_name == "hip":
-                            radius = int(width * 0.10)
-                        else:
-                            radius = int(width * 0.08)
-                            
-                        warp_targets.append((cx, cy, dx, dy, radius))
-                        
-        if not warp_targets:
-            return img
-            
-        # Apply displacements to the coordinate maps
-        for cx, cy, dx, dy, radius in warp_targets:
-            # Distance from center for all pixels
-            dist_sq = (grid_x - cx)**2 + (grid_y - cy)**2
-            radius_sq = radius**2
-            
-            # Mask of pixels inside the radius of influence
-            mask = dist_sq < radius_sq
-            
-            if np.any(mask):
-                # Smooth falloff weight: (1 - d/R)^2
-                dist = np.sqrt(dist_sq[mask])
-                weight = (1.0 - dist / radius) ** 2
-                
-                # Apply negative displacement to map (remap maps destination to source)
-                map_x[mask] -= dx * weight
-                map_y[mask] -= dy * weight
-                
-        # Remap pixels smoothly with linear interpolation
-        warped_img = cv2.remap(img, map_x, map_y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
-        return warped_img
 
     def _draw_badge(self, img, text: str, coord: tuple, color: tuple):
         """
