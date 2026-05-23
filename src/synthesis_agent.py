@@ -83,8 +83,13 @@ class SynthesisAgent:
                     cv2.putText(right_frame, f"Rep {rep['rep_index']}", (30, 50), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 1.0, color_ideal, 2, cv2.LINE_AA)
                     
-                    # Compute corrected landmarks dynamically and draw skeleton
+                    # Compute corrected landmarks dynamically based on original landmarks
                     corrected_lms = self._compute_ideal_landmarks(lms, faults)
+                    
+                    # Smoothly warp the actual body of the person in right_frame to match the corrected posture
+                    right_frame = self._warp_image_smoothly(right_frame, lms, corrected_lms, width, height)
+                    
+                    # Draw OMNI Corrected skeleton overlay on top of the warped body
                     self._draw_real_skeleton(right_frame, corrected_lms, color=color_ideal, width=width, height=height)
                     
                 else:
@@ -129,6 +134,70 @@ class SynthesisAgent:
                 
         return output_path
 
+
+    def _warp_image_smoothly(self, img, actual_lms: dict, corrected_lms: dict, width: int, height: int) -> np.ndarray:
+        """
+        Applies a smooth 2D vector deformation field (Photoshop Liquify-style warping) 
+        to physically shift the person's body in the video to align with the corrected skeleton.
+        """
+        # Create coordinate grid maps
+        grid_x, grid_y = np.meshgrid(np.arange(width, dtype=np.float32), np.arange(height, dtype=np.float32))
+        
+        map_x = grid_x.copy()
+        map_y = grid_y.copy()
+        
+        # We define joint pairings to warp: (Actual Landmark, Corrected Landmark, Radius of Influence)
+        warp_targets = []
+        
+        # Core joints to warp
+        for side in ["left", "right"]:
+            for joint_name in ["shoulder", "hip", "knee"]:
+                lm_key = f"{side}_{joint_name}"
+                if lm_key in actual_lms and lm_key in corrected_lms:
+                    act_pt = actual_lms[lm_key]
+                    corr_pt = corrected_lms[lm_key]
+                    
+                    # Compute pixel coordinates
+                    cx, cy = int(act_pt["x"] * width), int(act_pt["y"] * height)
+                    tx, ty = int(corr_pt["x"] * width), int(corr_pt["y"] * height)
+                    
+                    dx = tx - cx
+                    dy = ty - cy
+                    
+                    if dx != 0 or dy != 0:
+                        # Define radius based on joint type
+                        if joint_name == "shoulder":
+                            radius = int(width * 0.22)
+                        elif joint_name == "hip":
+                            radius = int(width * 0.20)
+                        else:
+                            radius = int(width * 0.16)
+                        warp_targets.append((cx, cy, dx, dy, radius))
+                        
+        if not warp_targets:
+            return img
+            
+        # Apply displacements to the coordinate maps
+        for cx, cy, dx, dy, radius in warp_targets:
+            # Distance from center for all pixels
+            dist_sq = (grid_x - cx)**2 + (grid_y - cy)**2
+            radius_sq = radius**2
+            
+            # Mask of pixels inside the radius of influence
+            mask = dist_sq < radius_sq
+            
+            if np.any(mask):
+                # Smooth falloff weight: (1 - d/R)^2
+                dist = np.sqrt(dist_sq[mask])
+                weight = (1.0 - dist / radius) ** 2
+                
+                # Apply negative displacement to map (remap maps destination to source)
+                map_x[mask] -= dx * weight
+                map_y[mask] -= dy * weight
+                
+        # Remap pixels smoothly with linear interpolation
+        warped_img = cv2.remap(img, map_x, map_y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+        return warped_img
 
     def _draw_badge(self, img, text: str, coord: tuple, color: tuple):
         """
