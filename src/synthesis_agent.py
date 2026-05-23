@@ -153,6 +153,34 @@ class SynthesisAgent:
             except Exception as cloud_err:
                 logger.error(f"SynthesisAgent: Google cloud video API call failed: {cloud_err}.")
 
+        # If the cloud demo video was not generated/downloaded successfully, fall back to any available cache file
+        veo_output_path = "veo_coaching_demo.mp4"
+        if not os.path.exists(veo_output_path):
+            logger.info("SynthesisAgent: Veo video generation failed or exact cache missed. Searching for fallback cached videos...")
+            import glob
+            import shutil
+            # Try matching by video_basename first
+            video_basename = os.path.basename(video_path).replace(".mp4", "")
+            fallback_pattern = os.path.join("cache", f"veo_{video_basename}_*.mp4")
+            cached_files = glob.glob(fallback_pattern)
+            
+            if not cached_files:
+                # Broad fallback to any cached Veo video as a last resort
+                fallback_pattern = os.path.join("cache", "veo_*.mp4")
+                cached_files = glob.glob(fallback_pattern)
+                
+            if cached_files:
+                # Sort by modification time to get the newest/best one
+                cached_files.sort(key=os.path.getmtime, reverse=True)
+                newest_cache = cached_files[0]
+                logger.info(f"SynthesisAgent: Restoring fallback cached Veo video: {newest_cache}")
+                try:
+                    shutil.copy(newest_cache, veo_output_path)
+                except Exception as copy_err:
+                    logger.error(f"SynthesisAgent: Failed to copy fallback cache file: {copy_err}")
+            else:
+                logger.warning("SynthesisAgent: No fallback cached Veo videos found in the cache directory.")
+
         # ----------------- PART 2: Local Skeletal Overlay Side-by-Side Path -----------------
         logger.info("SynthesisAgent: Commencing local side-by-side skeletal overlay rendering...")
         

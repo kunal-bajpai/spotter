@@ -1129,8 +1129,7 @@ Keep your sentences concise, punchy, conversational, and verbally interactive. A
         </body>
         </html>
         """
-        clean_voice_chat_html = "\n".join(line.strip() for line in voice_chat_html.splitlines())
-        st.markdown(clean_voice_chat_html, unsafe_allow_html=True)
+        st.components.v1.html(voice_chat_html, height=380)
 
 
     # 3. Rep-by-Rep Detail Carousel
