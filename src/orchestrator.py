@@ -31,7 +31,7 @@ class MasterOrchestrator:
         logger.info(f"MasterOrchestrator: Ingesting video: {video_path}")
         
         # Remove any stale veo coaching files from previous runs
-        for stale_file in ["veo_coaching_demo.mp4", "veo_coaching_audio.wav"]:
+        for stale_file in ["veo_coaching_demo.mp4"]:
             if os.path.exists(stale_file):
                 try:
                     os.remove(stale_file)
@@ -42,7 +42,7 @@ class MasterOrchestrator:
         if not os.path.exists(video_path):
             logger.error(f"MasterOrchestrator: Video file does not exist: {video_path}")
             raise FileNotFoundError(f"Source video file not found: {video_path}")
-
+ 
         # 1. Vision Sensor Agent: extract 3D landmarks
         logger.info("-------------------- STEP 1: Vision Extraction --------------------")
         raw_frames = self.vision_agent.process_video(video_path)
@@ -50,7 +50,7 @@ class MasterOrchestrator:
         if not raw_frames:
             logger.error("MasterOrchestrator: Vision Agent failed to extract any landmarks.")
             raise ValueError("No landmarks detected in the input video. Cannot proceed.")
-
+ 
         # 2. Kinematic Diagnostic Agent: segment reps & assess physical geometry
         logger.info("-------------------- STEP 2: Kinematic Diagnostics --------------------")
         reps_telemetry = self.diagnostic_agent.segment_reps(raw_frames)
@@ -68,21 +68,10 @@ class MasterOrchestrator:
                 },
                 "corrected_video_path": None
             }
-
+ 
         # 3. Cognitive Coach Agent: invoke Gemini for rep critiques with multimodal video understanding
         logger.info("-------------------- STEP 3: Cognitive Coaching --------------------")
         coaching_feedback = self.coach_agent.generate_feedback(reps_telemetry, video_path=video_path)
-
-        # 3.5 Generate dynamic audio commentary from the coach's summary using Gemini Audio Modality
-        if coaching_feedback and "workout_summary" in coaching_feedback:
-            summary_text = coaching_feedback["workout_summary"]
-            if "reps" in coaching_feedback and coaching_feedback["reps"]:
-                cues = [f"Rep {r['rep_index']}: {r['coaching_cue']}" for r in coaching_feedback["reps"]]
-                summary_text += " " + " ".join(cues)
-            try:
-                self.coach_agent.generate_audio_commentary(summary_text, "veo_coaching_audio.wav")
-            except Exception as audio_err:
-                logger.warning(f"MasterOrchestrator: Dynamic audio commentary generation failed: {audio_err}")
 
         # 4. Correction Synthesis Agent: render the side-by-side corrected form video and Veo demo video
         logger.info("-------------------- STEP 4: Visual Perfect-Form Synthesis --------------------")

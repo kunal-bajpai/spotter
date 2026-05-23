@@ -573,120 +573,12 @@ if st.session_state.analyzed and st.session_state.feedback:
         </div>
         """, unsafe_allow_html=True)
         
-    # High level coaching summary
     st.markdown(f"""
     <div class="glass-card">
         <h4 style='margin:0 0 8px 0;color:#FF8F8F;'>🧠 World-Class Coach Summary</h4>
         <p style='margin:0;line-height:1.6;font-size:1.05rem;'>"{analysis['workout_summary']}"</p>
     </div>
     """, unsafe_allow_html=True)
-
-    # 1.5 Coach Voice Commentary (Dynamic WAV or HTML5 SpeechSynthesis Fallback)
-    st.markdown("### 🎙️ Coach Voice Commentary")
-    
-    # Compile the text that the coach will speak
-    voice_feedback_text = analysis['workout_summary']
-    if 'reps' in analysis and analysis['reps']:
-        cues = [f"Rep {r['rep_index']}: {r['coaching_cue']}" for r in analysis['reps']]
-        voice_feedback_text += " " + " ".join(cues)
-        
-    # Clean quotes to avoid breaking HTML/JS string interpolation
-    safe_speech_text = voice_feedback_text.replace('"', '\\"').replace("'", "\\'")
-
-    audio_path = "veo_coaching_audio.wav"
-    if os.path.exists(audio_path):
-        st.markdown("""
-        <div class="glass-card safe-glow">
-            <h4 style='margin:0 0 8px 0;color:#64FFDA;'>🎙️ High-Fidelity Audio Commentary Active</h4>
-            <p style='margin:0 0 12px 0;font-size:0.95rem;color:#8892b0;line-height:1.4;'>
-                We have generated a matching high-fidelity voice commentary track using the <b>Gemini Live API's audio modality</b> (<code>gemini-2.0-flash</code>) in an encouraging, professional, and athletic coach tone.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-        st.audio(audio_path, format="audio/wav")
-    else:
-        st.markdown("""
-        <div class="glass-card warning-glow">
-            <h4 style='margin:0 0 8px 0;color:#FFD600;'>⚠️ Cloud Audio Commentary Unavailable</h4>
-            <p style='margin:0 0 12px 0;font-size:0.95rem;color:#8892b0;line-height:1.4;'>
-                The dynamic cloud-based Gemini audio commentary was not generated due to billing/prepayment limits or API constraints. 
-                <br>
-                <b>Resolution:</b> You can play the expert coaching feedback directly in your browser using our built-in high-quality local Speech Synthesis engine below!
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Embed highly styled premium local HTML5 TTS widget
-        tts_html = f"""
-        <style>
-            .tts-container {{
-                background: rgba(255, 255, 255, 0.02);
-                border: 1px solid rgba(255, 255, 255, 0.05);
-                border-radius: 12px;
-                padding: 18px;
-                margin-top: 5px;
-                box-shadow: 0 4px 30px rgba(0, 0, 0, 0.25);
-                display: flex;
-                flex-direction: column;
-                gap: 12px;
-                align-items: center;
-                justify-content: center;
-                text-align: center;
-            }}
-            .play-btn {{
-                background: linear-gradient(90deg, #FFD600 0%, #FF8F8F 100%);
-                border: none;
-                border-radius: 8px;
-                color: #0c0f17;
-                font-size: 1rem;
-                font-weight: 700;
-                padding: 12px 24px;
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 8px;
-                transition: all 0.3s ease;
-                box-shadow: 0 4px 15px rgba(255, 214, 0, 0.25);
-                font-family: 'Outfit', sans-serif;
-            }}
-            .play-btn:hover {{
-                transform: translateY(-2px);
-                box-shadow: 0 6px 20px rgba(255, 214, 0, 0.4);
-            }}
-            .play-btn:active {{
-                transform: translateY(0);
-            }}
-        </style>
-        <div class="tts-container">
-            <button onclick="speak()" class="play-btn">🔊 Listen to Local Coach Commentary</button>
-        </div>
-        <script>
-            function speak() {{
-                window.speechSynthesis.cancel();
-                const text = "{safe_speech_text}";
-                const utterance = new SpeechSynthesisUtterance(text);
-                
-                // Set high-quality English voice
-                const voices = window.speechSynthesis.getVoices();
-                const preferredVoice = voices.find(v => 
-                    (v.name.includes("Google") && v.lang.startsWith("en")) || 
-                    (v.name.includes("Natural") && v.lang.startsWith("en")) ||
-                    v.lang === "en-US"
-                );
-                if (preferredVoice) utterance.voice = preferredVoice;
-                utterance.rate = 1.05;
-                window.speechSynthesis.speak(utterance);
-            }}
-            
-            // Warmup speech synthesis voices
-            if (typeof window !== 'undefined' && 'speechSynthesis' in window) {{
-                window.speechSynthesis.getVoices();
-            }}
-        </script>
-        """
-        import streamlit.components.v1 as components
-        components.html(tts_html, height=120)
 
     # Display detected athlete appearance if available
     if "person_description" in analysis and analysis["person_description"]:
@@ -715,7 +607,7 @@ if st.session_state.analyzed and st.session_state.feedback:
         st.markdown("### 🏋️‍♂️ Virtual Coach Demonstration Video (Google Veo)")
         st.write("A high-fidelity coaching demonstration generated dynamically in the cloud by Google Veo showing bad form correcting to perfect textbook technique based on your coaching cues.")
         st.video(veo_demo_path)
-        st.info("ℹ️ **Audio Integration Note**: Because Google Veo (`veo-2.0-generate-001`) is a silent visual-only model under Developer API tiers, we utilize the **Gemini Live API audio modality** (`gemini-2.0-flash`) to dynamically generate a matching high-fidelity professional voice commentary track, played beautifully in the commentary panel above.")
+        st.info("ℹ️ **Audio Integration Note**: Google Veo (veo-2.0-generate-001) is a silent visual-only engine under Developer API tiers. To speak with your coach in real-time about this demonstration, click **Start Voice Session** in our real-time interactive **Live Voice Coach** dashboard below!")
     else:
         # Display a highly premium user-friendly diagnostic warning if Veo video could not be generated due to billing/prepay depletion
         st.markdown("""
@@ -733,6 +625,520 @@ if st.session_state.analyzed and st.session_state.feedback:
         """, unsafe_allow_html=True)
 
 
+    # 2.7 Live Voice Coach Session (Gemini Live WebSocket Widget)
+    st.markdown("### 🎙️ Talk to the Coach (Live Interactive Voice Session)")
+    st.write("Your personal, world-class athletic coach is ready to speak with you in real-time. Our system has loaded your squat diagnostics into their active memory. Press the button below, grant microphone permissions, and start speaking!")
+    
+    # Get active API key
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    
+    if not api_key:
+        st.markdown("""
+        <div class="glass-card danger-glow" style="text-align: center; padding: 30px;">
+            <h4 style="margin:0 0 8px 0;color:#FF1744;">⚠️ Live Voice Session Blocked</h4>
+            <p style="margin:0;font-size:0.95rem;color:#8892b0;line-height:1.4;">
+                Please configure your <code>GEMINI_API_KEY</code> environment variable to enable real-time bidirectional audio chat with the coach.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        # Dynamically compile the diagnostic context
+        workout_summary = analysis.get("workout_summary", "No reps analyzed yet.")
+        reps_cues = []
+        if "reps" in analysis and analysis["reps"]:
+            for r in analysis["reps"]:
+                reps_cues.append(f"Rep {r['rep_index']}: posture='{r['posture_evaluation']}', depth='{r['depth_evaluation']}', actionable cue='{r['coaching_cue']}'")
+        cues_text = " | ".join(reps_cues)
+        
+        dynamic_context = f"The user has just performed a set of squats. Summary of their performance: '{workout_summary}'. Rep-by-rep diagnostics: {cues_text}."
+        
+        # Format the system instruction prompt
+        system_instruction_raw = f"""You are a friendly, encouraging, but highly professional athletic trainer and Squat Coach.
+The user is here for real-time live voice squat coaching.
+
+Our team has analyzed the user's squat set and generated the following coaching context:
+{dynamic_context}
+
+Your exact instructions:
+Greet them enthusiastically and state clearly right off the bat the primary biomechanical issues you noticed in their squats based on the context (e.g. caving knees, torso tilt, or shallow depth).
+Explain briefly what those issues mean, why they matter/the impact (e.g. shear stress on joints, loss of glute power), and tell them how we are going to fix it today (e.g. using the cues and warm-up corrections described in the context).
+Do NOT lecture them for too long at once. End your introductory assessment by asking a friendly clarifying question, such as: "How long have you been training squats?", "Does this caving/tilt happen when you lift heavier weights?", or "Do you feel any pain when this happens?"
+Listen to their responses, offer tailored corrections, and coach them through setting up their correct mental and physical squat patterns.
+Keep your sentences concise, punchy, conversational, and verbally interactive. Avoid using deep markdown syntax, lists, or tables because you are speaking to them over live real-time audio! Keep the focus 100% on the dynamic squat fix."""
+
+        # Escape the prompt string for JS safely
+        js_safe_instruction = system_instruction_raw.replace('"', '\\"').replace("'", "\\'").replace('\n', ' ')
+        
+        # Inject custom HTML5/JS WebRTC/WebSocket player
+        voice_chat_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+        <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                background: transparent;
+                font-family: 'Outfit', sans-serif;
+                color: #e6f1ff;
+            }}
+            .coach-container {{
+                background: rgba(255, 255, 255, 0.02);
+                border: 1px solid rgba(255, 255, 255, 0.05);
+                border-radius: 16px;
+                padding: 24px;
+                box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 16px;
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
+            }}
+            .status-badge {{
+                background: rgba(255, 255, 255, 0.05);
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                border-radius: 20px;
+                padding: 6px 16px;
+                font-size: 0.9rem;
+                font-weight: 600;
+                color: #9ab0c1;
+                letter-spacing: 0.5px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                transition: all 0.3s ease;
+            }}
+            .status-badge.connected {{
+                border-color: #00E676;
+                color: #00E676;
+                box-shadow: 0 0 10px rgba(0, 230, 118, 0.15);
+            }}
+            .status-badge.speaking {{
+                border-color: #FF8F8F;
+                color: #FF8F8F;
+                box-shadow: 0 0 10px rgba(255, 143, 143, 0.15);
+            }}
+            .visualizer-box {{
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                height: 50px;
+                margin: 10px 0;
+            }}
+            .bar {{
+                width: 4px;
+                height: 10px;
+                background: #9ab0c1;
+                border-radius: 2px;
+                transition: all 0.2s ease;
+            }}
+            .active-wave .bar {{
+                background: linear-gradient(180deg, #FF4B4B 0%, #FF8F8F 100%);
+                animation: bounce 0.6s infinite alternate;
+            }}
+            .active-wave .bar:nth-child(2) {{ animation-delay: 0.1s; }}
+            .active-wave .bar:nth-child(3) {{ animation-delay: 0.2s; }}
+            .active-wave .bar:nth-child(4) {{ animation-delay: 0.3s; }}
+            .active-wave .bar:nth-child(5) {{ animation-delay: 0.4s; }}
+
+            @keyframes bounce {{
+                0% {{ height: 10px; }}
+                100% {{ height: 45px; }}
+            }}
+            
+            .mic-btn {{
+                width: 80px;
+                height: 80px;
+                border-radius: 50%;
+                border: none;
+                background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 2.2rem;
+                transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                outline: none;
+            }}
+            .mic-btn:hover {{
+                transform: scale(1.05);
+            }}
+            .mic-btn.active {{
+                background: linear-gradient(135deg, #FF4B4B 0%, #FF8F8F 100%);
+                box-shadow: 0 0 25px rgba(255, 75, 75, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+                animation: pulse 1.8s infinite;
+            }}
+            @keyframes pulse {{
+                0% {{ transform: scale(1); }}
+                50% {{ transform: scale(1.06); }}
+                100% {{ transform: scale(1); }}
+            }}
+            .mic-btn:disabled {{
+                opacity: 0.5;
+                cursor: not-allowed;
+            }}
+            .btn-lbl {{
+                font-size: 0.85rem;
+                color: #8892b0;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                margin-top: -4px;
+            }}
+            .log-box {{
+                background: rgba(0, 0, 0, 0.2);
+                border: 1px solid rgba(255, 255, 255, 0.05);
+                border-radius: 8px;
+                width: 90%;
+                padding: 12px;
+                font-size: 0.85rem;
+                color: #8892b0;
+                text-align: left;
+                max-height: 80px;
+                overflow-y: auto;
+                line-height: 1.5;
+                box-sizing: border-box;
+            }}
+        </style>
+        </head>
+        <body>
+        <div class="coach-container">
+            <div id="statusBadge" class="status-badge">🔘 Offline</div>
+            
+            <div id="waveBox" class="visualizer-box">
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+            </div>
+            
+            <button id="micBtn" class="mic-btn" onclick="toggleSession()">🎙️</button>
+            <div id="btnLbl" class="btn-lbl">Start Voice Session</div>
+            
+            <div id="logBox" class="log-box">
+                System initialized. Click the microphone button above to start your live voice coaching session.
+            </div>
+        </div>
+
+        <script>
+            let webSocket = null;
+            let mediaStream = null;
+            let audioProcessor = null;
+            let sourceNode = null;
+            let audioCtx = null;
+            let nextPlayTime = 0;
+            let activeSources = [];
+            let isConnected = false;
+            
+            const api_key = "{api_key}";
+            const systemInstructionText = "{js_safe_instruction}";
+            
+            function log(msg) {{
+                const box = document.getElementById("logBox");
+                box.innerHTML = msg + "<br>" + box.innerHTML;
+                console.log(msg);
+            }}
+            
+            function updateStatus(statusText, type) {{
+                const badge = document.getElementById("statusBadge");
+                const waveBox = document.getElementById("waveBox");
+                const btnLbl = document.getElementById("btnLbl");
+                
+                badge.className = "status-badge";
+                waveBox.className = "visualizer-box";
+                
+                if (type === 'connected') {{
+                    badge.classList.add("connected");
+                    badge.innerText = "🟢 " + statusText;
+                    btnLbl.innerText = "Stop Voice Session";
+                }} else if (type === 'speaking') {{
+                    badge.classList.add("speaking");
+                    badge.innerText = "🎙️ " + statusText;
+                    waveBox.classList.add("active-wave");
+                }} else if (type === 'connecting') {{
+                    badge.innerText = "🟡 " + statusText;
+                }} else {{
+                    badge.innerText = "🔘 Offline";
+                    btnLbl.innerText = "Start Voice Session";
+                }}
+            }}
+            
+            function toggleSession() {{
+                if (isConnected) {{
+                    stopSession();
+                }} else {{
+                    startSession();
+                }}
+            }}
+            
+            function startSession() {{
+                if (!api_key) {{
+                    log("Error: API Key is missing. Set GEMINI_API_KEY in environment.");
+                    return;
+                }}
+                isConnected = true;
+                document.getElementById("micBtn").classList.add("active");
+                updateStatus("Connecting...", "connecting");
+                log("Connecting to Gemini Live API WebSocket...");
+                
+                connectWebSocket();
+            }}
+            
+            function stopSession() {{
+                isConnected = false;
+                document.getElementById("micBtn").classList.remove("active");
+                updateStatus("Offline");
+                log("Session stopped.");
+                
+                if (webSocket) {{
+                    webSocket.close();
+                    webSocket = null;
+                }}
+                stopAudioRecording();
+                stopAllAudioPlayback();
+            }}
+            
+            function connectWebSocket() {{
+                const model = "models/gemini-3.1-flash-live-preview";
+                const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${{api_key}}`;
+                
+                try {{
+                    webSocket = new WebSocket(wsUrl);
+                    
+                    webSocket.onopen = () => {{
+                        log("WebSocket handshake completed. Configuring live session...");
+                        const setupMessage = {{
+                            "setup": {{
+                                "model": model,
+                                "generationConfig": {{
+                                    "responseModalities": ["AUDIO"],
+                                    "speechConfig": {{
+                                        "voiceConfig": {{
+                                            "prebuiltVoiceConfig": {{
+                                                "voiceName": "Kore"
+                                            }}
+                                        }}
+                                    }}
+                                }},
+                                "systemInstruction": {{
+                                    "parts": [
+                                        {{
+                                            "text": systemInstructionText
+                                        }}
+                                    ]
+                                }}
+                            }}
+                        }};
+                        webSocket.send(JSON.stringify(setupMessage));
+                    }};
+                    
+                    webSocket.onmessage = async (event) => {{
+                        try {{
+                            let data;
+                            if (event.data instanceof Blob) {{
+                                const text = await event.data.text();
+                                data = JSON.parse(text);
+                            }} else {{
+                                data = JSON.parse(event.data);
+                            }}
+                            
+                            if (data.setupComplete) {{
+                                log("Session active! Greet the Coach.");
+                                updateStatus("Listening...", "connected");
+                                startAudioRecording();
+                                return;
+                            }}
+                            
+                            if (data.serverContent) {{
+                                const serverContent = data.serverContent;
+                                
+                                if (serverContent.interrupted) {{
+                                    log("Coach was interrupted by your voice.");
+                                    stopAllAudioPlayback();
+                                    updateStatus("Listening...", "connected");
+                                    return;
+                                }}
+                                
+                                if (serverContent.modelTurn && serverContent.modelTurn.parts) {{
+                                    updateStatus("Coach is speaking...", "speaking");
+                                    serverContent.modelTurn.parts.forEach(part => {{
+                                        if (part.inlineData && part.inlineData.data) {{
+                                            playPCM(part.inlineData.data);
+                                        }}
+                                    }});
+                                }}
+                            }}
+                        }} catch (err) {{
+                            console.error("Error parsing WebSocket message:", err);
+                        }}
+                    }};
+                    
+                    webSocket.onclose = (e) => {{
+                        log(`WebSocket closed (Code: ${{e.code}}).`);
+                        if (isConnected) {{
+                            stopSession();
+                        }}
+                    }};
+                    
+                    webSocket.onerror = (err) => {{
+                        log("WebSocket error occurred.");
+                        console.error(err);
+                    }};
+                    
+                }} catch (e) {{
+                    log(`WebSocket creation failed: ${{e.message}}`);
+                    stopSession();
+                }}
+            }}
+            
+            async function startAudioRecording() {{
+                try {{
+                    mediaStream = await navigator.mediaDevices.getUserMedia({{ audio: true }});
+                    
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const inputSampleRate = audioCtx.sampleRate;
+                    
+                    sourceNode = audioCtx.createMediaStreamSource(mediaStream);
+                    audioProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
+                    
+                    audioProcessor.onaudioprocess = (e) => {{
+                        if (!webSocket || webSocket.readyState !== WebSocket.OPEN) return;
+                        
+                        const inputData = e.inputBuffer.getChannelData(0);
+                        const pcmBuffer = downsampleTo16kHzPCM(inputData, inputSampleRate);
+                        const base64Data = arrayBufferToBase64(pcmBuffer.buffer);
+                        
+                        const clientMessage = {{
+                            "realtimeInput": {{
+                                "mediaChunks": [
+                                    {{
+                                        "mimeType": "audio/pcm",
+                                        "data": base64Data
+                                    }}
+                                ]
+                            }}
+                        }};
+                        webSocket.send(JSON.stringify(clientMessage));
+                    }};
+                    
+                    sourceNode.connect(audioProcessor);
+                    audioProcessor.connect(audioCtx.destination);
+                    log("Microphone recording active (16kHz PCM).");
+                }} catch (err) {{
+                    log("Error getting microphone: " + err.message);
+                    stopSession();
+                }}
+            }}
+            
+            function stopAudioRecording() {{
+                if (audioProcessor) {{
+                    audioProcessor.disconnect();
+                    audioProcessor = null;
+                }}
+                if (sourceNode) {{
+                    sourceNode.disconnect();
+                    sourceNode = null;
+                }}
+                if (mediaStream) {{
+                    mediaStream.getTracks().forEach(track => track.stop());
+                    mediaStream = null;
+                }}
+            }}
+            
+            function downsampleTo16kHzPCM(buffer, inputSampleRate) {{
+                const sampleRateRatio = inputSampleRate / 16000;
+                const newLength = Math.round(buffer.length / sampleRateRatio);
+                const result = new Int16Array(newLength);
+                let offsetResult = 0;
+                let offsetBuffer = 0;
+                while (offsetResult < result.length) {{
+                    const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
+                    let accum = 0, count = 0;
+                    for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {{
+                        accum += buffer[i];
+                        count++;
+                    }}
+                    let val = accum / count;
+                    val = Math.max(-1, Math.min(1, val));
+                    result[offsetResult] = val < 0 ? val * 0x8000 : val * 0x7FFF;
+                    offsetResult++;
+                    offsetBuffer = nextOffsetBuffer;
+                }}
+                return result;
+            }}
+            
+            function arrayBufferToBase64(buffer) {{
+                let binary = '';
+                const bytes = new Uint8Array(buffer);
+                const len = bytes.byteLength;
+                for (let i = 0; i < len; i++) {{
+                    binary += String.fromCharCode(bytes[i]);
+                }}
+                return window.btoa(binary);
+            }}
+            
+            function playPCM(base64Data) {{
+                if (!audioCtx) return;
+                
+                try {{
+                    const binaryString = window.atob(base64Data);
+                    const len = binaryString.length;
+                    const bytes = new Uint8Array(len);
+                    for (let i = 0; i < len; i++) {{
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }}
+                    
+                    const int16Array = new Int16Array(bytes.buffer);
+                    const float32Array = new Float32Array(int16Array.length);
+                    for (let i = 0; i < int16Array.length; i++) {{
+                        float32Array[i] = int16Array[i] / 32768.0;
+                    }}
+                    
+                    const audioBuffer = audioCtx.createBuffer(1, float32Array.length, 24000);
+                    audioBuffer.getChannelData(0).set(float32Array);
+                    
+                    const source = audioCtx.createBufferSource();
+                    source.buffer = audioBuffer;
+                    source.connect(audioCtx.destination);
+                    
+                    const currentTime = audioCtx.currentTime;
+                    if (nextPlayTime < currentTime) {{
+                        nextPlayTime = currentTime;
+                    }}
+                    source.start(nextPlayTime);
+                    
+                    source.onended = () => {{
+                        const badge = document.getElementById("statusBadge");
+                        if (badge.innerText.includes("speaking") && audioCtx.currentTime >= nextPlayTime) {{
+                            updateStatus("Listening...", "connected");
+                        }}
+                    }};
+                    
+                    nextPlayTime += audioBuffer.duration;
+                    activeSources.push(source);
+                }} catch (e) {{
+                    console.error("Playback failed:", e);
+                }}
+            }}
+            
+            function stopAllAudioPlayback() {{
+                activeSources.forEach(source => {{
+                    try {{ source.stop(); }} catch(e) {{}}
+                }});
+                activeSources = [];
+                nextPlayTime = 0;
+            }}
+        </script>
+        </body>
+        </html>
+        """
+        import streamlit.components.v1 as components
+        components.html(voice_chat_html, height=350)
 
 
     # 3. Rep-by-Rep Detail Carousel
