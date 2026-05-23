@@ -124,3 +124,10 @@ venv.bak/
 # OS-specific
 .DS_Store
 Thumbs.db
+
+# Project-specific video/asset caches
+*.mp4
+*.webm
+*.task
+demo_squat_landmarks.json
+

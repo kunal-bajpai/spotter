@@ -14,7 +14,8 @@ class MasterOrchestrator:
     Controls the entire AI Squat Coach pipeline: Coordinates data flow between 
     Vision, Diagnostic, Coach, and Synthesis agents.
     """
-    def __init__(self, gemini_model: str = "gemini-2.5-flash"):
+    def __init__(self, gemini_model: str = "gemini-3.5-flash"):
+
         logger.info("MasterOrchestrator: Initializing orchestrator pipeline...")
         self.vision_agent = VisionAgent()
         self.diagnostic_agent = DiagnosticAgent()
@@ -67,6 +68,7 @@ class MasterOrchestrator:
         logger.info("-------------------- STEP 4: Visual Perfect-Form Synthesis --------------------")
         final_video_path = self.synthesis_agent.generate_ideal_video(
             video_path=video_path,
+            raw_frames=raw_frames,
             reps_telemetry=reps_telemetry,
             output_path=output_video_path
         )
@@ -85,7 +87,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="AI Squat Coach - Multi-Agent Command Line Interface")
     parser.add_argument("--video", type=str, required=True, help="Path to input squat video")
     parser.add_argument("--output", type=str, default="output_corrected.mp4", help="Path for corrected output video")
-    parser.add_argument("--model", type=str, default="gemini-2.5-flash", help="Gemini model name")
+    parser.add_argument("--model", type=str, default="gemini-3.5-flash", help="Gemini model name")
     parser.add_argument("--debug", action="store_true", help="Enable verbose debug logging")
 
     args = parser.parse_args()
