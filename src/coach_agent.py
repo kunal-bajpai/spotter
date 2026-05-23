@@ -74,11 +74,16 @@ class CoachAgent:
         SQUAT TELEMETRY DATA:
         {reps_telemetry}
         
+        BIOMECHANICAL REFERENCE STANDARDS:
+        - Torso Lean: In a standard back squat, some forward torso lean is physically necessary to maintain balance. A lean angle of up to 35 degrees is completely normal, safe, and expected. Do NOT flag torso lean as a fault or tell the lifter they leaned too much unless the max torso lean angle exceeds 40 degrees.
+        - Squat Depth: Adequate depth is achieved when the hip joint sinks to the level of the knee joint or lower (peak_depth_gap >= -0.05). If the peak_depth_gap is less than -0.05, it is shallow.
+        - Knee Valgus: A valgus count of 5 or fewer is safe. Only flag knee valgus (knee caving) if the valgus count exceeds 5.
+        
         Your objective:
         1. Evaluate each repetition thoroughly.
-        2. Analyze the physical joint telemetry trends organically to diagnose any biomechanical flaws, movement deviations, or posture anomalies. Let your conditioning expertise guide what constitutes a movement fault.
+        2. Analyze the physical joint telemetry trends organically using the Biomechanical Reference Standards to diagnose real movement faults.
         3. Provide exactly one high-impact, physiological coaching cue for each repetition (e.g. "push the ground away", "keep your eyes on the horizon", "imagine sitting back into a chair").
-        4. Rate safety: DANGEROUS if extreme forward lean or extreme caving occurred, WARNING if shallow, SAFE if clean.
+        4. Rate safety: DANGEROUS if extreme forward lean (> 40 degrees) or knee cave occurred, WARNING if shallow, SAFE if clean and within standard ranges.
         
         CRITICAL TONE INSTRUCTION:
         Adopt an exceptionally motivational, positive, and encouraging coaching persona. Write all evaluations and cues in a supportive, empowering tone that builds the athlete's confidence, inspires them to improve, and drives them to execute better on their next set, while keeping their safety as the absolute highest priority.
