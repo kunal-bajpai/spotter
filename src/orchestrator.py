@@ -31,7 +31,7 @@ class MasterOrchestrator:
         logger.info(f"MasterOrchestrator: Ingesting video: {video_path}")
         
         # Remove any stale veo coaching files from previous runs
-        for stale_file in ["veo_coaching_demo.mp4", "veo_coaching_audio.mp3"]:
+        for stale_file in ["veo_coaching_demo.mp4", "veo_coaching_audio.wav"]:
             if os.path.exists(stale_file):
                 try:
                     os.remove(stale_file)
@@ -80,7 +80,7 @@ class MasterOrchestrator:
                 cues = [f"Rep {r['rep_index']}: {r['coaching_cue']}" for r in coaching_feedback["reps"]]
                 summary_text += " " + " ".join(cues)
             try:
-                self.coach_agent.generate_audio_commentary(summary_text, "veo_coaching_audio.mp3")
+                self.coach_agent.generate_audio_commentary(summary_text, "veo_coaching_audio.wav")
             except Exception as audio_err:
                 logger.warning(f"MasterOrchestrator: Dynamic audio commentary generation failed: {audio_err}")
 

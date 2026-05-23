@@ -603,7 +603,7 @@ if st.session_state.analyzed and st.session_state.feedback:
 
     # 2.5 Google Veo Virtual Coach Demonstration Video
     veo_demo_path = "veo_coaching_demo.mp4"
-    veo_audio_path = "veo_coaching_audio.mp3"
+    veo_audio_path = "veo_coaching_audio.wav"
     
     if os.path.exists(veo_demo_path):
         st.markdown("### 🏋️‍♂️ Virtual Coach Demonstration Video (Google Veo)")
@@ -612,10 +612,11 @@ if st.session_state.analyzed and st.session_state.feedback:
         # Play the dynamic Gemini Live audio commentary track if generated successfully
         if os.path.exists(veo_audio_path):
             st.markdown("🔊 **Dynamic Coach Voice Commentary (Gemini Live API):**")
-            st.audio(veo_audio_path, format="audio/mp3", autoplay=False)
+            st.audio(veo_audio_path, format="audio/wav", autoplay=False)
             
         st.video(veo_demo_path)
         st.info("ℹ️ **Audio Integration Note**: Because Google Veo (`veo-2.0-generate-001`) is a silent visual-only model under Developer API tiers, we utilize the **Gemini Live API audio modality** (`gemini-2.0-flash`) to dynamically generate a matching high-fidelity professional voice commentary track, played beautifully alongside the coach demonstration.")
+
 
 
     # 3. Rep-by-Rep Detail Carousel

@@ -271,10 +271,10 @@ class CoachAgent:
         logger.info("CoachAgent: Heuristic feedback generation complete.")
         return result
 
-    def generate_audio_commentary(self, text: str, output_path: str = "veo_coaching_audio.mp3") -> str:
+    def generate_audio_commentary(self, text: str, output_path: str = "veo_coaching_audio.wav") -> str:
         """
         Queries Gemini to perform text-to-speech conversion of the coaching summary
-        and saves the audio bytes natively.
+        and saves the audio bytes wrapped in a standard WAV header.
         """
         logger.info(f"CoachAgent: Generating native audio commentary for text: '{text}'")
         if not self.client:
@@ -298,14 +298,28 @@ class CoachAgent:
                 )
             )
 
-            # Extract the raw audio bytes from the response parts
+            # Extract the raw PCM bytes from response parts
+            pcm_bytes = None
             for part in response.candidates[0].content.parts:
                 if part.inline_data and part.inline_data.data:
-                    # Write audio bytes directly to the output file
-                    with open(output_path, "wb") as f:
-                        f.write(part.inline_data.data)
-                    logger.info(f"CoachAgent: Native coaching audio saved successfully to {output_path}")
-                    return output_path
+                    pcm_bytes = part.inline_data.data
+                    break
+
+            if pcm_bytes:
+                import wave
+                # Gemini outputs 24kHz, 16-bit, mono little-endian PCM
+                sample_rate = 24000
+                sample_width = 2  # 16-bit = 2 bytes
+                channels = 1  # mono
+
+                with wave.open(output_path, 'wb') as wav_file:
+                    wav_file.setnchannels(channels)
+                    wav_file.setsampwidth(sample_width)
+                    wav_file.setframerate(sample_rate)
+                    wav_file.writeframes(pcm_bytes)
+
+                logger.info(f"CoachAgent: Native coaching PCM audio successfully wrapped and saved as WAV to {output_path}")
+                return output_path
 
             logger.warning("CoachAgent: No inline audio data found in response parts.")
             return None
