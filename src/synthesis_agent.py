@@ -67,7 +67,7 @@ class SynthesisAgent:
                             if rep["faults"].get("knee_valgus") and "valgus" not in faults_detected:
                                 faults_detected.append("valgus")
 
-                    veo_prompt = "A high-fidelity video of a professional strength coach in a gym showing how to squat properly. "
+                    veo_prompt = "A high-fidelity silent video of a professional strength coach in a gym showing how to squat properly, performing the exercise silently with closed lips and a focused expression without opening their mouth or talking. "
                     if "lean" in faults_detected:
                         veo_prompt += (
                             "The coach starts at the bottom of the squat with a heavily forward-bent posture (bad form), "
@@ -128,6 +128,9 @@ class SynthesisAgent:
                         with open(veo_output_path, "wb") as f:
                             f.write(video_bytes)
                         logger.info(f"SynthesisAgent: Cloud coach video generated and saved successfully to {veo_output_path}")
+                        
+                        # Post-process the downloaded Veo video to overlay dynamic coaching subtitles
+                        self._add_subtitles_to_veo_video(veo_output_path, coaching_feedback)
                     else:
                         logger.warning("SynthesisAgent: No generated videos found in operation response.")
                 else:
@@ -385,3 +388,103 @@ class SynthesisAgent:
             corrected["right_knee"]["x"] = corrected["right_ankle"]["x"] + 0.03
 
         return corrected
+
+    def _add_subtitles_to_veo_video(self, video_path: str, coaching_feedback: dict):
+        """
+        Overlay the coaching cues as text subtitles at the bottom of the Veo video
+        with a premium, semi-transparent black background box for high readability.
+        """
+        if not coaching_feedback:
+            return
+
+        # Extract coaching cues to compile the subtitle text
+        cue_text = ""
+        if "reps" in coaching_feedback and coaching_feedback["reps"]:
+            # Find unique cues across all reps
+            unique_cues = []
+            for rep in coaching_feedback["reps"]:
+                cue = rep.get("coaching_cue", "").strip()
+                if cue and cue not in unique_cues:
+                    unique_cues.append(cue)
+            if unique_cues:
+                # Compile to one clean line, e.g. "Coach Cue: Keep chest tall & push knees out!"
+                cue_text = "Coach Cue: " + " | ".join(unique_cues)
+        
+        if not cue_text:
+            cue_text = "Coach Cue: Maintain a flat neutral spine and push the floor away evenly."
+
+        logger.info(f"SynthesisAgent: Adding subtitles to Veo video: '{cue_text}'")
+
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            logger.error(f"SynthesisAgent: Could not open downloaded Veo video for subtitling: {video_path}")
+            return
+
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        if fps <= 0:
+            fps = 24.0
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+        temp_sub_path = "temp_veo_subtitled.mp4"
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter(temp_sub_path, fourcc, fps, (width, height))
+
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.5
+        thickness = 1
+        
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            # Add subtitle overlay at the bottom 10% of the frame
+            overlay = frame.copy()
+            
+            # Subtitle padding & dimensions
+            (text_width, text_height), baseline = cv2.getTextSize(cue_text, font, font_scale, thickness)
+            
+            # Position subtitle centered horizontally at the bottom
+            text_x = max(10, (width - text_width) // 2)
+            text_y = int(height * 0.9)
+            
+            # Draw semi-transparent black rectangle background behind text
+            box_padding_x = 12
+            box_padding_y = 8
+            x1 = max(0, text_x - box_padding_x)
+            y1 = text_y - text_height - box_padding_y
+            x2 = min(width, text_x + text_width + box_padding_x)
+            y2 = text_y + box_padding_y
+            
+            cv2.rectangle(overlay, (x1, y1), (x2, y2), (0, 0, 0), -1)
+            cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
+            
+            # Draw white text outline for high contrast
+            cv2.putText(frame, cue_text, (text_x, text_y), font, font_scale, (0, 0, 0), thickness + 2, cv2.LINE_AA)
+            # Draw clean white text
+            cv2.putText(frame, cue_text, (text_x, text_y), font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+
+            out.write(frame)
+
+        cap.release()
+        out.release()
+
+        # Transcode the subtitled video back to the original veo path using ffmpeg H.264
+        import subprocess
+        try:
+            cmd = [
+                "ffmpeg", "-y", "-i", temp_sub_path,
+                "-vcodec", "libx264", "-pix_fmt", "yuv420p",
+                video_path
+            ]
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            if os.path.exists(temp_sub_path):
+                os.remove(temp_sub_path)
+            logger.info("SynthesisAgent: Veo video subtitled and transcoded successfully.")
+        except Exception as e:
+            logger.warning(f"SynthesisAgent: FFMpeg transcode of subtitled Veo video failed: {e}. Using raw MPEG-4.")
+            if os.path.exists(temp_sub_path):
+                if os.path.exists(video_path):
+                    os.remove(video_path)
+                os.rename(temp_sub_path, video_path)
