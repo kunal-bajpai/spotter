@@ -70,53 +70,31 @@ class SynthesisAgent:
                     faults = rep["faults"]
                     has_faults = any(faults.values())
                     
-                    # Left Frame: Draw actual tracked skeleton (Red if faulty, Orange/Yellow if Warning)
+                    # Draw only the simplified Rep count on both frames (no other text alerts)
                     color_actual = (0, 0, 255) if has_faults else (0, 165, 255)
-                    cv2.putText(left_frame, f"ACTUAL FORM: Rep {rep['rep_index']}", (30, 50), 
+                    cv2.putText(left_frame, f"Rep {rep['rep_index']}", (30, 50), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 1.0, color_actual, 2, cv2.LINE_AA)
                     
-                    y_offset = 90
-                    for fault_name, triggered in faults.items():
-                        if triggered:
-                            cv2.putText(left_frame, f"[ALERT] {fault_name.replace('_', ' ').upper()}", 
-                                        (30, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color_actual, 2, cv2.LINE_AA)
-                            y_offset += 30
-                            
-                    # Draw your actual skeleton on the left frame
+                    # Draw actual skeleton on the left frame
                     self._draw_real_skeleton(left_frame, lms, color=color_actual, width=width, height=height)
                     
-                    # Right Frame: Draw OMNI Corrected skeleton (Green)
+                    # Draw only the simplified Rep count on corrected frame
                     color_ideal = (0, 255, 0)
-                    cv2.putText(right_frame, f"OMNI CORRECTED: Rep {rep['rep_index']}", (30, 50), 
+                    cv2.putText(right_frame, f"Rep {rep['rep_index']}", (30, 50), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 1.0, color_ideal, 2, cv2.LINE_AA)
                     
-                    if has_faults:
-                        cv2.putText(right_frame, "[OMNI] Deforming pose coordinates to ideal vertical/depth planes...", (30, 90),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, color_ideal, 1, cv2.LINE_AA)
-                    else:
-                        cv2.putText(right_frame, "[OMNI] Perfect textbook alignment maintained", (30, 90),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, color_ideal, 1, cv2.LINE_AA)
-                    
-                    # Compute corrected landmarks dynamically based on original landmarks
+                    # Compute corrected landmarks dynamically and draw skeleton
                     corrected_lms = self._compute_ideal_landmarks(lms, faults)
                     self._draw_real_skeleton(right_frame, corrected_lms, color=color_ideal, width=width, height=height)
                     
                 else:
-                    # Outside reps / setup: Draw standard cyan/blue tracking overlay
+                    # Outside reps / setup: Draw standard cyan tracking skeleton with no text overlays
                     color_tracking = (255, 255, 0) # Cyan in BGR
-                    cv2.putText(left_frame, "ACTIVE SENSOR SKELETON DETECTED", (30, 50), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, color_tracking, 2, cv2.LINE_AA)
-                    cv2.putText(right_frame, "ACTIVE SENSOR SKELETON DETECTED", (30, 50), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, color_tracking, 2, cv2.LINE_AA)
-                    
                     self._draw_real_skeleton(left_frame, lms, color=color_tracking, width=width, height=height)
                     self._draw_real_skeleton(right_frame, lms, color=color_tracking, width=width, height=height)
             else:
-                # No landmarks detected in frame
-                cv2.putText(left_frame, "NO TRACKING DETECTED", (30, 50), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
-                cv2.putText(right_frame, "NO TRACKING DETECTED", (30, 50), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
+                # No landmarks detected in frame: do not overlay any text
+                pass
 
             combined_frame = np.hstack((left_frame, right_frame))
             out.write(combined_frame)
@@ -237,16 +215,16 @@ class SynthesisAgent:
         left_torso_angle = DiagnosticAgent.calculate_torso_angle(landmarks["left_shoulder"], landmarks["left_hip"])
         right_torso_angle = DiagnosticAgent.calculate_torso_angle(landmarks["right_shoulder"], landmarks["right_hip"])
         
-        # Display joint labeling and angle degree badges next to each joint
+        # Display joint labeling and angle degree badges next to each joint (rounded to integers, standard ASCII "deg" units)
         # Left-side labels are offset leftwards, right-side labels offset rightwards to avoid overlap
         self._draw_badge(img, "L Shoulder", (s_l[0] - 80, s_l[1] - 8), color)
         self._draw_badge(img, "R Shoulder", (s_r[0] + 12, s_r[1] - 8), color)
         
-        self._draw_badge(img, f"L Torso: {left_torso_angle:.1f}°", (h_l[0] - 110, h_l[1] - 8), color)
-        self._draw_badge(img, f"R Torso: {right_torso_angle:.1f}°", (h_r[0] + 12, h_r[1] - 8), color)
+        self._draw_badge(img, f"L Torso: {int(round(left_torso_angle))} deg", (h_l[0] - 110, h_l[1] - 8), color)
+        self._draw_badge(img, f"R Torso: {int(round(right_torso_angle))} deg", (h_r[0] + 12, h_r[1] - 8), color)
         
-        self._draw_badge(img, f"L Knee: {left_knee_angle:.1f}°", (k_l[0] - 110, k_l[1] + 12), color)
-        self._draw_badge(img, f"R Knee: {right_knee_angle:.1f}°", (k_r[0] + 12, k_r[1] + 12), color)
+        self._draw_badge(img, f"L Knee: {int(round(left_knee_angle))} deg", (k_l[0] - 110, k_l[1] + 12), color)
+        self._draw_badge(img, f"R Knee: {int(round(right_knee_angle))} deg", (k_r[0] + 12, k_r[1] + 12), color)
         
         self._draw_badge(img, "L Ankle", (a_l[0] - 65, a_l[1] + 12), color)
         self._draw_badge(img, "R Ankle", (a_r[0] + 12, a_r[1] + 12), color)
