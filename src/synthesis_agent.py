@@ -212,15 +212,28 @@ class SynthesisAgent:
             corrected["right_hip"]["y"] = corrected["right_knee"]["y"] + 0.03
 
         # 2. Correct Excessive Torso Lean
-        # In a side profile view, leaning forward means shoulders are horizontally displaced forward.
-        # We push shoulders backward horizontally (close to hip vertical line) and raise them up.
+        # In a back squat, aiming for a completely vertical spine (0 degrees) is biomechanically unrealistic
+        # and physically impossible due to the need to balance the center of gravity over the midfoot.
+        # We correct the excessive lean to a safe, natural, and realistic 20-degree forward lean.
+        # We preserve the actual torso length and direction of the user's squat lean (facing left or right).
         if faults.get("excessive_forward_lean"):
-            # Move shoulders vertically above hips
-            corrected["left_shoulder"]["x"] = corrected["left_hip"]["x"]
-            corrected["right_shoulder"]["x"] = corrected["right_hip"]["x"]
-            # Raise shoulders vertically (smaller y)
-            corrected["left_shoulder"]["y"] = corrected["left_hip"]["y"] - 0.35
-            corrected["right_shoulder"]["y"] = corrected["right_hip"]["y"] - 0.35
+            target_lean_rad = np.radians(20.0)  # Realistic 20-degree lean target
+            for side in ["left", "right"]:
+                sh_name = f"{side}_shoulder"
+                hip_name = f"{side}_hip"
+                
+                dx = lms[sh_name]["x"] - lms[hip_name]["x"]
+                dy = lms[sh_name]["y"] - lms[hip_name]["y"]
+                
+                # Conserve the user's physical torso length (L)
+                torso_len = np.sqrt(dx**2 + dy**2)
+                
+                if torso_len > 0:
+                    # Dynamically preserve the forward lean direction (left vs right profile)
+                    sign_x = np.sign(dx) if dx != 0 else 1.0
+                    
+                    corrected[sh_name]["x"] = lms[hip_name]["x"] + sign_x * torso_len * np.sin(target_lean_rad)
+                    corrected[sh_name]["y"] = lms[hip_name]["y"] - torso_len * np.cos(target_lean_rad)
 
         # 3. Correct Knee Valgus (Inward cave-in)
         # We widen knee x-coordinates outwards relative to hips/ankles
