@@ -68,9 +68,9 @@ class MasterOrchestrator:
                 "corrected_video_path": None
             }
 
-        # 3. Cognitive Coach Agent: invoke Gemini for rep critiques
+        # 3. Cognitive Coach Agent: invoke Gemini for rep critiques with multimodal video understanding
         logger.info("-------------------- STEP 3: Cognitive Coaching --------------------")
-        coaching_feedback = self.coach_agent.generate_feedback(reps_telemetry)
+        coaching_feedback = self.coach_agent.generate_feedback(reps_telemetry, video_path=video_path)
 
         # 4. Correction Synthesis Agent: render the side-by-side corrected form video and Veo demo video
         logger.info("-------------------- STEP 4: Visual Perfect-Form Synthesis --------------------")
