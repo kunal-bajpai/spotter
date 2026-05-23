@@ -1129,8 +1129,7 @@ Keep your sentences concise, punchy, conversational, and verbally interactive. A
         </body>
         </html>
         """
-        import streamlit.components.v1 as components
-        components.html(voice_chat_html, height=350)
+        st.markdown(voice_chat_html, unsafe_allow_html=True)
 
 
     # 3. Rep-by-Rep Detail Carousel
