@@ -63,32 +63,16 @@ class SynthesisAgent:
                     
                 logger.info(f"SynthesisAgent: Formulated correction prompt: {correction_prompt}")
                 
-                # 3. Try calling Gemini Omni Flash conversational video edit API first
-                try:
-                    logger.info("SynthesisAgent: Querying 'gemini-omni-flash' conversational edit endpoint...")
-                    operation = client.models.edit_video(
-                        model="gemini-omni-flash",
-                        video=uploaded_file,
-                        prompt=correction_prompt,
-                        config=types.EditVideoConfig(
-                            aspect_ratio="16:9",
-                            duration_seconds=5,
-                            watermark_synth_id=True
-                        )
+                # 3. Call Veo Video Generation API ('veo-2.0-generate-001') directly
+                logger.info("SynthesisAgent: Querying Google Veo video generation endpoint ('veo-2.0-generate-001')...")
+                operation = client.models.generate_videos(
+                    model="veo-2.0-generate-001",
+                    prompt=f"A high-fidelity video of the same athlete performing a perfect back squat. {correction_prompt}",
+                    config=types.GenerateVideosConfig(
+                        aspect_ratio="16:9",
+                        duration_seconds=5,
                     )
-                except Exception as omni_err:
-                    # 4. Fallback to Veo Video Generation API if Omni-edit fails or is not enabled
-                    logger.warning(f"SynthesisAgent: Gemini Omni-edit API call failed: {omni_err}. "
-                                   f"Falling back to Veo Video Generation API ('veo-2.0-generate-001')...")
-                    
-                    operation = client.models.generate_videos(
-                        model="veo-2.0-generate-001",
-                        prompt=f"A high-fidelity video of the same athlete performing a perfect back squat. {correction_prompt}",
-                        config=types.GenerateVideosConfig(
-                            aspect_ratio="16:9",
-                            duration_seconds=5,
-                        )
-                    )
+                )
                 
                 # 5. Poll the long-running operation
                 import time
