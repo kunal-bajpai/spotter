@@ -30,6 +30,14 @@ class MasterOrchestrator:
         """
         logger.info(f"MasterOrchestrator: Ingesting video: {video_path}")
         
+        # Remove any stale veo coaching demo video from previous runs
+        if os.path.exists("veo_coaching_demo.mp4"):
+            try:
+                os.remove("veo_coaching_demo.mp4")
+                logger.info("MasterOrchestrator: Stale veo_coaching_demo.mp4 deleted.")
+            except Exception as e:
+                logger.warning(f"MasterOrchestrator: Could not delete stale veo demo: {e}")
+        
         if not os.path.exists(video_path):
             logger.error(f"MasterOrchestrator: Video file does not exist: {video_path}")
             raise FileNotFoundError(f"Source video file not found: {video_path}")
@@ -64,12 +72,13 @@ class MasterOrchestrator:
         logger.info("-------------------- STEP 3: Cognitive Coaching --------------------")
         coaching_feedback = self.coach_agent.generate_feedback(reps_telemetry)
 
-        # 4. Correction Synthesis Agent: render the side-by-side corrected form video
+        # 4. Correction Synthesis Agent: render the side-by-side corrected form video and Veo demo video
         logger.info("-------------------- STEP 4: Visual Perfect-Form Synthesis --------------------")
         final_video_path = self.synthesis_agent.generate_ideal_video(
             video_path=video_path,
             raw_frames=raw_frames,
             reps_telemetry=reps_telemetry,
+            coaching_feedback=coaching_feedback,
             output_path=output_video_path
         )
 

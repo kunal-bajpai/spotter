@@ -591,6 +591,13 @@ if st.session_state.analyzed and st.session_state.feedback:
     else:
         st.warning("Comparison video is not available or failed to compile.")
 
+    # 2.5 Google Veo Virtual Coach Demonstration Video
+    veo_demo_path = "veo_coaching_demo.mp4"
+    if os.path.exists(veo_demo_path):
+        st.markdown("### 🏋️‍♂️ Virtual Coach Demonstration Video (Google Veo)")
+        st.write("A high-fidelity coaching demonstration generated dynamically in the cloud by Google Veo showing bad form correcting to perfect textbook technique based on your coaching cues.")
+        st.video(veo_demo_path)
+
     # 3. Rep-by-Rep Detail Carousel
     st.markdown("### 🏋️‍♂️ Rep-by-Rep Biomechanical Breakdown")
     for rep in analysis["reps"]:

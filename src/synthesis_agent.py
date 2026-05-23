@@ -23,100 +23,109 @@ class SynthesisAgent:
     def __init__(self):
         logger.info("SynthesisAgent initialized.")
 
-    def generate_ideal_video(self, video_path: str, raw_frames: list[dict], reps_telemetry: list[dict], output_path: str = "output_corrected.mp4") -> str:
+    def generate_ideal_video(self, video_path: str, raw_frames: list[dict], reps_telemetry: list[dict], coaching_feedback: dict = None, output_path: str = "output_corrected.mp4") -> str:
         """
-        Creates a perfect-form corrected video.
-        Attempts to query Google's premium Gemini Omni (video-to-video edit) or Veo (video generation) APIs.
-        Falls back to generating a side-by-side comparison video using local skeletal overlays.
+        Creates a side-by-side perfect-form corrected wireframe comparison video locally.
+        Independently, queries Google's premium Veo API to generate a short virtual coach demonstration video
+        showing bad form correcting to perfect form based on Gemini's coaching advice.
         """
         logger.info(f"SynthesisAgent: Synthesizing ideal video from {video_path}...")
         
-        # ----------------- OPTION 1: Gemini Omni / Veo Cloud API Path -----------------
+        # ----------------- PART 1: Google Veo Cloud Virtual Coach Video -----------------
         api_key = os.environ.get("GEMINI_API_KEY")
         if GENAI_AVAILABLE and api_key:
             try:
-                logger.info("SynthesisAgent: Attempting Gemini Omni / Veo cloud video synthesis...")
+                # Compile specific coaching demonstration prompt based on feedback
+                faults_detected = []
+                if coaching_feedback and "reps" in coaching_feedback:
+                    for rep in coaching_feedback["reps"]:
+                        desc = rep.get("posture_evaluation", "").lower() + " " + rep.get("depth_evaluation", "").lower()
+                        if "shallow" in desc and "depth" not in faults_detected:
+                            faults_detected.append("depth")
+                        if "lean" in desc and "lean" not in faults_detected:
+                            faults_detected.append("lean")
+                        if "valgus" in desc and "valgus" not in faults_detected:
+                            faults_detected.append("valgus")
+                
+                # Fallback to reps_telemetry if coaching_feedback is empty or missing
+                if not faults_detected:
+                    for rep in reps_telemetry:
+                        if rep["faults"].get("shallow_depth") and "depth" not in faults_detected:
+                            faults_detected.append("depth")
+                        if rep["faults"].get("excessive_forward_lean") and "lean" not in faults_detected:
+                            faults_detected.append("lean")
+                        if rep["faults"].get("knee_valgus") and "valgus" not in faults_detected:
+                            faults_detected.append("valgus")
+
+                veo_prompt = "A high-fidelity video of a professional strength coach in a gym showing how to squat properly. "
+                if "lean" in faults_detected:
+                    veo_prompt += (
+                        "The coach starts at the bottom of the squat with a heavily forward-bent posture (bad form), "
+                        "and then smoothly demonstrates the corrective action by straightening their back, raising their chest tall and proud, "
+                        "and keeping their torso upright at a safe, natural 20-degree lean relative to vertical. A perfect visual transition showing bad form correcting to textbook form."
+                    )
+                elif "valgus" in faults_detected:
+                    veo_prompt += (
+                        "The coach starts the ascent with their knees caving inward (bad knee valgus form), "
+                        "and then smoothly demonstrates the corrective action by driving their knees straight out over their toes "
+                        "to align perfectly over the ankles. A perfect visual transition showing bad form correcting to textbook form."
+                    )
+                elif "depth" in faults_detected:
+                    veo_prompt += (
+                        "The coach starts the squat but stops shallow above parallel (bad form), "
+                        "and then smoothly demonstrates the corrective action by sinking their hips back and down to reach full deep parallel depth "
+                        "with perfect posture. A perfect visual transition showing bad form correcting to textbook form."
+                    )
+                else:
+                    veo_prompt += (
+                        "The coach performs a textbook back squat with flawless form: controlled descent, "
+                        "sinking hips deep to parallel, keeping the chest tall, knees tracking perfectly over the toes, and a smooth ascent. "
+                        "Extremely educational, demonstrating perfect technique."
+                    )
+
+                logger.info(f"SynthesisAgent: Formulated Veo Virtual Coach prompt: {veo_prompt}")
                 client = genai.Client(api_key=api_key)
                 
-                # 1. Upload video to Google's GenAI File Manager
-                logger.info(f"SynthesisAgent: Uploading source video to GenAI File Manager: {video_path}")
-                uploaded_file = client.files.upload(file=video_path)
-                logger.info(f"SynthesisAgent: Video uploaded successfully. Cloud URI: {uploaded_file.uri}")
-                
-                # 2. Extract active faults to compose a highly detailed prompt
-                active_faults = []
-                for rep in reps_telemetry:
-                    for fault_name, triggered in rep["faults"].items():
-                        if triggered and fault_name not in active_faults:
-                            active_faults.append(fault_name.replace("_", " "))
-                            
-                correction_prompt = (
-                    "Biomechanical Squat Form Correction: Edit this person performing the squat to demonstrate perfect form. "
-                    "Make sure to keep the user's face, clothes, gym background, and equipment 100% consistent. "
-                )
-                if "shallow depth" in active_faults:
-                    correction_prompt += "Ensure the hips sink lower at the bottom of the squat to achieve full parallel depth. "
-                if "excessive forward lean" in active_faults:
-                    correction_prompt += "Upright the torso and chest to a safe, natural 20-degree lean relative to vertical at the bottom. "
-                if "knee valgus" in active_faults:
-                    correction_prompt += "Keep the knees tracking straight out over the toes during the ascent. "
-                    
-                logger.info(f"SynthesisAgent: Formulated correction prompt: {correction_prompt}")
-                
-                # 3. Call Veo Video Generation API ('veo-2.0-generate-001') directly
-                logger.info("SynthesisAgent: Querying Google Veo video generation endpoint ('veo-2.0-generate-001')...")
+                logger.info("SynthesisAgent: Querying Google Veo video generation endpoint ('veo-2.0-generate-001') for virtual coach demo...")
                 operation = client.models.generate_videos(
                     model="veo-2.0-generate-001",
-                    prompt=f"A high-fidelity video of the same athlete performing a perfect back squat. {correction_prompt}",
+                    prompt=veo_prompt,
                     config=types.GenerateVideosConfig(
                         aspect_ratio="16:9",
                         duration_seconds=5,
                     )
                 )
                 
-                # 5. Poll the long-running operation
+                # Poll the long-running operation
                 import time
                 wait_count = 0
                 max_wait = 18  # Wait up to 180 seconds (10s intervals)
                 
                 while not operation.done and wait_count < max_wait:
-                    logger.info("SynthesisAgent: Waiting for cloud video model to synthesize perfect form... (polling 10s)")
+                    logger.info("SynthesisAgent: Waiting for cloud coach video generation... (polling 10s)")
                     time.sleep(10)
                     operation = client.operations.get(operation)
                     wait_count += 1
                     
                 if operation.done:
-                    # Access the generated video response (could be in .result or .response)
                     res = operation.result if (hasattr(operation, "result") and operation.result) else getattr(operation, "response", None)
                     if res and res.generated_videos:
                         generated_video = res.generated_videos[0]
-                        logger.info("SynthesisAgent: Video generation complete on cloud. Downloading video file...")
+                        logger.info("SynthesisAgent: Cloud coach video generation complete. Downloading video file...")
                         video_bytes = client.files.download(file=generated_video.video)
                         
-                        # Write the resulting video bytes to the output path
-                        with open(output_path, "wb") as f:
+                        veo_output_path = "veo_coaching_demo.mp4"
+                        with open(veo_output_path, "wb") as f:
                             f.write(video_bytes)
-                        logger.info(f"SynthesisAgent: Cloud video generated and saved successfully to {output_path}")
+                        logger.info(f"SynthesisAgent: Cloud coach video generated and saved successfully to {veo_output_path}")
                     else:
-                        raise ValueError("No generated video list found in operation result/response.")
-                    
-                    # Clean up the uploaded cloud file
-                    try:
-                        client.files.delete(name=uploaded_file.name)
-                        logger.info("SynthesisAgent: Cloud temp file cleaned up successfully.")
-                    except Exception as del_err:
-                        logger.warning(f"SynthesisAgent: Could not delete cloud temp file: {del_err}")
-                        
-                    return output_path
+                        logger.warning("SynthesisAgent: No generated videos found in operation response.")
                 else:
-                    logger.warning("SynthesisAgent: Cloud video generation timed out. Falling back to local skeletal overlays.")
-                    
+                    logger.warning("SynthesisAgent: Cloud coach video generation timed out.")
             except Exception as cloud_err:
-                logger.error(f"SynthesisAgent: Google cloud video API call failed: {cloud_err}. "
-                             f"This typically means your GEMINI_API_KEY is standard and lacks billing/preview access to paid Veo/Omni video endpoints yet. "
-                             f"Falling back gracefully to local side-by-side skeletal wireframe overlays.")
+                logger.error(f"SynthesisAgent: Google cloud video API call failed: {cloud_err}.")
 
-        # ----------------- OPTION 2: Local Skeletal Overlay Fallback Path -----------------
+        # ----------------- PART 2: Local Skeletal Overlay Side-by-Side Path -----------------
         logger.info("SynthesisAgent: Commencing local side-by-side skeletal overlay rendering...")
         
         cap = cv2.VideoCapture(video_path)
