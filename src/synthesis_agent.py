@@ -34,8 +34,10 @@ class SynthesisAgent:
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
         # Output video will be side-by-side (2 * width, height)
+        # We write to a temporary file first, then transcode to H.264 for HTML5 browser compatibility
+        self.temp_path = "temp_synthesis_output.mp4"
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(output_path, fourcc, fps, (width * 2, height))
+        out = cv2.VideoWriter(self.temp_path, fourcc, fps, (width * 2, height))
 
         # We map frames inside identified faulty reps
         faulty_frames_map = {}
@@ -122,8 +124,33 @@ class SynthesisAgent:
 
         cap.release()
         out.release()
-        logger.info(f"SynthesisAgent: Perfect form comparison video compiled and saved to {output_path}")
+
+        # Transcode the completed MPEG-4 video to a browser-compatible H.264 standard using FFMpeg
+        import subprocess
+        import os
+        try:
+            logger.info("SynthesisAgent: Transcoding compiled video to browser-playable H.264 codec...")
+            cmd = [
+                "ffmpeg", "-y", "-i", self.temp_path,
+                "-vcodec", "libx264", "-pix_fmt", "yuv420p",
+                output_path
+            ]
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            
+            # Clean up temporary file
+            if os.path.exists(self.temp_path):
+                os.remove(self.temp_path)
+            logger.info(f"SynthesisAgent: Browser-friendly H.264 video transcoded successfully to {output_path}")
+        except Exception as err:
+            logger.warning(f"SynthesisAgent: FFMpeg H.264 transcode failed: {err}. Falling back to default MPEG-4.")
+            # Graceful fallback: rename the temporary file directly to the output path
+            if os.path.exists(self.temp_path):
+                if os.path.exists(output_path):
+                    os.remove(output_path)
+                os.rename(self.temp_path, output_path)
+                
         return output_path
+
 
     def _draw_real_skeleton(self, img, landmarks: dict, color: tuple, width: int, height: int):
         """
