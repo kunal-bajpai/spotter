@@ -14,13 +14,13 @@ class MasterOrchestrator:
     Controls the entire AI Squat Coach pipeline: Coordinates data flow between 
     Vision, Diagnostic, Coach, and Synthesis agents.
     """
-    def __init__(self, gemini_model: str = "gemini-3.5-flash"):
+    def __init__(self, gemini_model: str = "gemini-2.5-flash", api_key: str = None):
 
         logger.info("MasterOrchestrator: Initializing orchestrator pipeline...")
         self.vision_agent = VisionAgent()
         self.diagnostic_agent = DiagnosticAgent()
-        self.coach_agent = CoachAgent(model_name=gemini_model)
-        self.synthesis_agent = SynthesisAgent()
+        self.coach_agent = CoachAgent(model_name=gemini_model, api_key=api_key)
+        self.synthesis_agent = SynthesisAgent(api_key=api_key)
         logger.info("MasterOrchestrator: All agent components initialized successfully.")
 
     def run_coaching_flow(self, video_path: str, output_video_path: str = "output_corrected.mp4") -> dict:
@@ -97,7 +97,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="AI Squat Coach - Multi-Agent Command Line Interface")
     parser.add_argument("--video", type=str, required=True, help="Path to input squat video")
     parser.add_argument("--output", type=str, default="output_corrected.mp4", help="Path for corrected output video")
-    parser.add_argument("--model", type=str, default="gemini-3.5-flash", help="Gemini model name")
+    parser.add_argument("--model", type=str, default="gemini-2.5-flash", help="Gemini model name")
     parser.add_argument("--debug", action="store_true", help="Enable verbose debug logging")
 
     args = parser.parse_args()
@@ -108,7 +108,7 @@ if __name__ == "__main__":
         main_logger.setLevel(10) # DEBUG
 
     try:
-        orchestrator = MasterOrchestrator(gemini_model=args.model)
+        orchestrator = MasterOrchestrator(gemini_model=args.model, api_key=os.environ.get("GEMINI_API_KEY"))
         result = orchestrator.run_coaching_flow(args.video, args.output)
         
         print("\n================== SQUAT COACH FEEDBACK ==================")

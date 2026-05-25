@@ -268,6 +268,24 @@ def generate_synthetic_squat_video(filename="demo_squat.mp4", squat_type="perfec
 st.sidebar.markdown("<h2 style='text-align: center;'>⚙️ CONTROL PANEL</h2>", unsafe_allow_html=True)
 st.sidebar.markdown("Configure options for the Multi-Agent Diagnostic Core.")
 
+# --- Bring-your-own API key (session-only; never persisted to disk) ---
+st.sidebar.markdown("### 🔑 Your Gemini API Key")
+user_api_key = st.sidebar.text_input(
+    "Paste your key (kept in browser session only):",
+    type="password",
+    value=st.session_state.get("gemini_api_key", ""),
+    help="Get a free key at https://aistudio.google.com/apikey. Never shared, never written to disk.",
+    placeholder="AIza..."
+)
+st.session_state.gemini_api_key = user_api_key
+
+if user_api_key:
+    st.sidebar.success(f"✓ Key loaded ({len(user_api_key)} chars). Cleared when you close this tab.")
+else:
+    st.sidebar.warning("⚠️ No key set — analysis will run in offline heuristic mode (no Gemini insights, no Veo video, no Live Voice Coach).")
+
+st.sidebar.markdown("---")
+
 # Choose execution path
 run_mode = st.sidebar.radio(
     "Choose Input Stream:",
@@ -277,8 +295,17 @@ run_mode = st.sidebar.radio(
 
 model_selector = st.sidebar.selectbox(
     "Cognitive Coach Model",
-    ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash"],
-    index=0
+    [
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-pro",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro",
+    ],
+    index=0,
+    help="Flash = fast & cheap, Pro = highest quality. Lite variants are cheapest."
 )
 
 
@@ -398,7 +425,7 @@ if run_mode == "🎥 Record Live Webcam":
                 st.info("🎨 Correction Synthesis Agent: Compiling side-by-side ideal pose deforming overlays...")
                 
             try:
-                orchestrator = MasterOrchestrator(gemini_model=model_selector)
+                orchestrator = MasterOrchestrator(gemini_model=model_selector, api_key=user_api_key)
                 result = orchestrator.run_coaching_flow(video_path=recorded_file, output_video_path="output_corrected.mp4")
                 
                 st.session_state.feedback = result
@@ -467,7 +494,7 @@ elif run_mode == "🤖 Run Synthetic Demo Mode":
             
         try:
             # Instantiate pipeline
-            orchestrator = MasterOrchestrator(gemini_model=model_selector)
+            orchestrator = MasterOrchestrator(gemini_model=model_selector, api_key=user_api_key)
             
             # Run pipeline E2E
             result = orchestrator.run_coaching_flow(video_path=video_file, output_video_path="output_corrected.mp4")
@@ -508,7 +535,7 @@ else:
                 st.info("🎨 Correction Synthesis Agent: Compiling side-by-side ideal pose deforming overlays...")
                 
             try:
-                orchestrator = MasterOrchestrator(gemini_model=model_selector)
+                orchestrator = MasterOrchestrator(gemini_model=model_selector, api_key=user_api_key)
                 result = orchestrator.run_coaching_flow(video_path=temp_path, output_video_path="output_corrected.mp4")
                 
                 st.session_state.feedback = result
@@ -629,15 +656,15 @@ if st.session_state.analyzed and st.session_state.feedback:
     st.markdown("### 🎙️ Talk to the Coach (Live Interactive Voice Session)")
     st.write("Your personal, world-class athletic coach is ready to speak with you in real-time. Our system has loaded your squat diagnostics into their active memory. Press the button below, grant microphone permissions, and start speaking!")
     
-    # Get active API key
-    api_key = os.environ.get("GEMINI_API_KEY", "")
+    # Get active API key (from sidebar input, session-only)
+    api_key = st.session_state.get("gemini_api_key", "")
     
     if not api_key:
         st.markdown("""
         <div class="glass-card danger-glow" style="text-align: center; padding: 30px;">
             <h4 style="margin:0 0 8px 0;color:#FF1744;">⚠️ Live Voice Session Blocked</h4>
             <p style="margin:0;font-size:0.95rem;color:#8892b0;line-height:1.4;">
-                Please configure your <code>GEMINI_API_KEY</code> environment variable to enable real-time bidirectional audio chat with the coach.
+                Please paste your Gemini API key in the sidebar (top of the Control Panel) to enable real-time bidirectional audio chat with the coach.
             </p>
         </div>
         """, unsafe_allow_html=True)

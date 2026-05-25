@@ -35,10 +35,10 @@ class CoachAgent:
     Translates quantitative kinematic telemetry into professional, physiological,
     and encouraging coaching feedback using modern Gemini multimodal models.
     """
-    def __init__(self, model_name: str = "gemini-3.5-flash"):
+    def __init__(self, model_name: str = "gemini-2.5-flash", api_key: str = None):
 
         self.model_name = model_name
-        self.api_key = os.environ.get("GEMINI_API_KEY")
+        self.api_key = api_key
         self.client = None
 
         if GENAI_AVAILABLE and self.api_key:
@@ -50,7 +50,7 @@ class CoachAgent:
                 logger.error(f"CoachAgent: Failed to initialize Gemini client: {e}")
         else:
             if not self.api_key:
-                logger.warning("CoachAgent: GEMINI_API_KEY env variable is missing. "
+                logger.warning("CoachAgent: No API key provided. "
                                "Coach will operate in local biomechanical fallback mode.")
 
     def generate_feedback(self, reps_telemetry: list[dict], video_path: str = None) -> dict:

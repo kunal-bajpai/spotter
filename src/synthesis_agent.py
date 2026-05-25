@@ -20,7 +20,8 @@ class SynthesisAgent:
     Connects directly to Google GenAI's Gemini Omni and Veo APIs to generate/edit
     perfect-form videos, or falls back to custom static side-by-side skeletal overlays.
     """
-    def __init__(self):
+    def __init__(self, api_key: str = None):
+        self.api_key = api_key
         logger.info("SynthesisAgent initialized.")
 
     def generate_ideal_video(self, video_path: str, raw_frames: list[dict], reps_telemetry: list[dict], coaching_feedback: dict = None, output_path: str = "output_corrected.mp4") -> str:
@@ -32,7 +33,7 @@ class SynthesisAgent:
         logger.info(f"SynthesisAgent: Synthesizing ideal video from {video_path}...")
         
         # ----------------- PART 1: Google Veo Cloud Virtual Coach Video -----------------
-        api_key = os.environ.get("GEMINI_API_KEY")
+        api_key = self.api_key
         if GENAI_AVAILABLE and api_key:
             try:
                 # Retrieve the dynamic veo_coaching_prompt generated organically by Gemini
