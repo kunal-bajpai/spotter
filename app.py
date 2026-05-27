@@ -4,6 +4,11 @@ import json
 import numpy as np
 import cv2
 import time
+from dotenv import load_dotenv
+
+# Load .env (project-scoped secrets) before importing modules that may read env vars.
+load_dotenv()
+
 from src.orchestrator import MasterOrchestrator
 from src.utils.logger import logger
 
@@ -426,11 +431,11 @@ if run_mode == "🎥 Record Live Webcam":
                 
             try:
                 orchestrator = MasterOrchestrator(gemini_model=model_selector, api_key=user_api_key)
-                result = orchestrator.run_coaching_flow(video_path=recorded_file, output_video_path="output_corrected.mp4")
+                result = orchestrator.run_coaching_flow(video_path=recorded_file, output_video_path="outputs/output_corrected.mp4")
                 
                 st.session_state.feedback = result
                 st.session_state.video_path = recorded_file
-                st.session_state.corrected_path = "output_corrected.mp4"
+                st.session_state.corrected_path = "outputs/output_corrected.mp4"
                 st.session_state.analyzed = True
                 
                 status_box.empty()
@@ -473,8 +478,8 @@ elif run_mode == "🤖 Run Synthetic Demo Mode":
         
         with status_box.container():
             if demo_type == "Real Squat Athlete Video (Perfect Textbook Form)":
-                st.info("Using downloaded real squat athlete video (YouTube: txnwoJz-Rno)...")
-                video_file = "real_demo_squat.mp4"
+                st.info("Using local real squat athlete video (data/YouTube_Back-Squat-Side-View.mp4)...")
+                video_file = "data/YouTube_Back-Squat-Side-View.mp4"
             else:
                 st.info("Creating OpenCV skeleton sequence...")
                 # Generate simulated video file
@@ -497,11 +502,11 @@ elif run_mode == "🤖 Run Synthetic Demo Mode":
             orchestrator = MasterOrchestrator(gemini_model=model_selector, api_key=user_api_key)
             
             # Run pipeline E2E
-            result = orchestrator.run_coaching_flow(video_path=video_file, output_video_path="output_corrected.mp4")
+            result = orchestrator.run_coaching_flow(video_path=video_file, output_video_path="outputs/output_corrected.mp4")
             
             st.session_state.feedback = result
             st.session_state.video_path = video_file
-            st.session_state.corrected_path = "output_corrected.mp4"
+            st.session_state.corrected_path = "outputs/output_corrected.mp4"
             st.session_state.analyzed = True
             
             status_box.empty()
@@ -519,7 +524,8 @@ else:
     
     if uploaded_file is not None:
         # Save temp file
-        temp_path = "uploaded_temp.mp4"
+        os.makedirs("cache", exist_ok=True)
+        temp_path = "cache/uploaded_temp.mp4"
         with open(temp_path, "wb") as f:
             f.write(uploaded_file.read())
             
@@ -536,11 +542,11 @@ else:
                 
             try:
                 orchestrator = MasterOrchestrator(gemini_model=model_selector, api_key=user_api_key)
-                result = orchestrator.run_coaching_flow(video_path=temp_path, output_video_path="output_corrected.mp4")
+                result = orchestrator.run_coaching_flow(video_path=temp_path, output_video_path="outputs/output_corrected.mp4")
                 
                 st.session_state.feedback = result
                 st.session_state.video_path = temp_path
-                st.session_state.corrected_path = "output_corrected.mp4"
+                st.session_state.corrected_path = "outputs/output_corrected.mp4"
                 st.session_state.analyzed = True
                 
                 status_box.empty()
@@ -628,7 +634,7 @@ if st.session_state.analyzed and st.session_state.feedback:
         st.warning("Comparison video is not available or failed to compile.")
 
     # 2.5 Google Veo Virtual Coach Demonstration Video
-    veo_demo_path = "veo_coaching_demo.mp4"
+    veo_demo_path = "outputs/veo_coaching_demo.mp4"
     
     if os.path.exists(veo_demo_path):
         st.markdown("### 🏋️‍♂️ Virtual Coach Demonstration Video (Google Veo)")

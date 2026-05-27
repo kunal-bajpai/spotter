@@ -23,7 +23,7 @@ class MasterOrchestrator:
         self.synthesis_agent = SynthesisAgent(api_key=api_key)
         logger.info("MasterOrchestrator: All agent components initialized successfully.")
 
-    def run_coaching_flow(self, video_path: str, output_video_path: str = "output_corrected.mp4") -> dict:
+    def run_coaching_flow(self, video_path: str, output_video_path: str = "outputs/output_corrected.mp4") -> dict:
         """
         Executes the full pipeline:
         Video -> MediaPipe Extraction -> Kinematic Rules -> Gemini Feedback -> Omni Visual Synthesis.
@@ -31,7 +31,7 @@ class MasterOrchestrator:
         logger.info(f"MasterOrchestrator: Ingesting video: {video_path}")
         
         # Remove any stale veo coaching files from previous runs
-        for stale_file in ["veo_coaching_demo.mp4"]:
+        for stale_file in ["outputs/veo_coaching_demo.mp4"]:
             if os.path.exists(stale_file):
                 try:
                     os.remove(stale_file)
@@ -96,7 +96,7 @@ if __name__ == "__main__":
     # Configure argument parsing for CLI usage
     parser = argparse.ArgumentParser(description="AI Squat Coach - Multi-Agent Command Line Interface")
     parser.add_argument("--video", type=str, required=True, help="Path to input squat video")
-    parser.add_argument("--output", type=str, default="output_corrected.mp4", help="Path for corrected output video")
+    parser.add_argument("--output", type=str, default="outputs/output_corrected.mp4", help="Path for corrected output video")
     parser.add_argument("--model", type=str, default="gemini-2.5-flash", help="Gemini model name")
     parser.add_argument("--debug", action="store_true", help="Enable verbose debug logging")
 

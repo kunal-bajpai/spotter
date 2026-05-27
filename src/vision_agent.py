@@ -20,12 +20,13 @@ class VisionAgent:
         self.min_detection_confidence = min_detection_confidence
         self.min_tracking_confidence = min_tracking_confidence
         self.landmarker = None
-        self.model_path = "pose_landmarker_full.task"
+        self.model_path = "models/pose_landmarker_full.task"
         logger.info("VisionAgent: Initialized with lazy loading configurations.")
 
     def _ensure_model_exists(self):
         """Downloads the standard pose landmark model if not present in the workspace."""
         if not os.path.exists(self.model_path):
+            os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
             url = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task"
             logger.info(f"VisionAgent: Downloading PoseLandmarker model weights from Google CDN...")
             try:

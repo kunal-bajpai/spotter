@@ -1,17 +1,23 @@
 [project]
-name = "coach-ag"
+name = "spotter"
 version = "0.1.0"
-description = "Add your description here"
+description = "AI squat coach — analyzes squat videos via a multi-agent pipeline (vision, kinematic diagnostics, coaching feedback, corrected-form synthesis)."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "google-genai>=2.6.0",
+    "imageio-ffmpeg>=0.6.0",
     "mediapipe>=0.10.35",
     "numpy>=2.4.6",
     "opencv-python-headless>=4.13.0.92",
     "pydantic>=2.13.4",
-    "pytest>=9.0.3",
-    "pytest-mock>=3.15.1",
+    "python-dotenv>=1.2.2",
     "streamlit>=1.57.0",
     "yt-dlp>=2026.3.17",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-mock>=3.15.1",
 ]

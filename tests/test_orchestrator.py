@@ -23,7 +23,7 @@ def mock_landmarks():
 def test_orchestrator_successful_flow(mock_exists, mock_generate_ideal_video, mock_process_video, mock_landmarks):
     # Setup Mocks
     mock_exists.return_value = True
-    mock_generate_ideal_video.return_value = "output_corrected.mp4"
+    mock_generate_ideal_video.return_value = "outputs/output_corrected.mp4"
     
     # Simulate a single full squat rep (60 frames)
     frames = []
@@ -85,7 +85,7 @@ def test_orchestrator_successful_flow(mock_exists, mock_generate_ideal_video, mo
 
     # Assertions
     assert result["success"] is True
-    assert result["corrected_video_path"] == "output_corrected.mp4"
+    assert result["corrected_video_path"] == "outputs/output_corrected.mp4"
     
     analysis = result["analysis"]
     assert "workout_summary" in analysis

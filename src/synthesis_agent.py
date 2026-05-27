@@ -2,6 +2,7 @@ import cv2
 import copy
 import numpy as np
 import os
+import imageio_ffmpeg
 from src.utils.logger import logger
 
 # Import Google GenAI SDK if available
@@ -24,14 +25,15 @@ class SynthesisAgent:
         self.api_key = api_key
         logger.info("SynthesisAgent initialized.")
 
-    def generate_ideal_video(self, video_path: str, raw_frames: list[dict], reps_telemetry: list[dict], coaching_feedback: dict = None, output_path: str = "output_corrected.mp4") -> str:
+    def generate_ideal_video(self, video_path: str, raw_frames: list[dict], reps_telemetry: list[dict], coaching_feedback: dict = None, output_path: str = "outputs/output_corrected.mp4") -> str:
         """
         Creates a side-by-side perfect-form corrected wireframe comparison video locally.
         Independently, queries Google's premium Veo API to generate a short virtual coach demonstration video
         showing bad form correcting to perfect form based on Gemini's coaching advice.
         """
         logger.info(f"SynthesisAgent: Synthesizing ideal video from {video_path}...")
-        
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
         # ----------------- PART 1: Google Veo Cloud Virtual Coach Video -----------------
         api_key = self.api_key
         if GENAI_AVAILABLE and api_key:
@@ -102,7 +104,7 @@ class SynthesisAgent:
                 video_basename = os.path.basename(video_path).replace(".mp4", "")
                 cache_veo_path = os.path.join("cache", f"veo_{video_basename}_{prompt_hash}.mp4")
 
-                veo_output_path = "veo_coaching_demo.mp4"
+                veo_output_path = "outputs/veo_coaching_demo.mp4"
 
                 if os.path.exists(cache_veo_path):
                     logger.info(f"SynthesisAgent: Found cached Veo coaching video at {cache_veo_path}. Restoring...")
@@ -155,7 +157,7 @@ class SynthesisAgent:
                 logger.error(f"SynthesisAgent: Google cloud video API call failed: {cloud_err}.")
 
         # If the cloud demo video was not generated/downloaded successfully, fall back to any available cache file
-        veo_output_path = "veo_coaching_demo.mp4"
+        veo_output_path = "outputs/veo_coaching_demo.mp4"
         if not os.path.exists(veo_output_path):
             logger.info("SynthesisAgent: Veo video generation failed or exact cache missed. Searching for fallback cached videos...")
             import glob
@@ -267,8 +269,9 @@ class SynthesisAgent:
         import subprocess
         try:
             logger.info("SynthesisAgent: Transcoding compiled video to browser-playable H.264 codec...")
+            ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe()
             cmd = [
-                "ffmpeg", "-y", "-i", self.temp_path,
+                ffmpeg_bin, "-y", "-i", self.temp_path,
                 "-vcodec", "libx264", "-pix_fmt", "yuv420p",
                 output_path
             ]

@@ -131,3 +131,12 @@ Thumbs.db
 *.task
 demo_squat_landmarks.json
 
+# Local data folder — inputs, outputs, models. Never commit.
+data/
+
+# Runtime artifacts — regenerable, never commit.
+cache/
+logs/
+outputs/
+models/
+
